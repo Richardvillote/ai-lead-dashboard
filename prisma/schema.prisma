@@ -1,0 +1,49 @@
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "sqlite"
+}
+
+model Lead {
+  id          String   @id @default(cuid())
+  name        String
+  email       String
+  phone       String?
+  service     String?
+  message     String?
+  status      String   @default("NEW")
+  source      String?  @default("website")
+  notes       String?
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+
+  appointments Appointment[]
+  calls        CallLog[]
+}
+
+model Appointment {
+  id          String   @id @default(cuid())
+  leadId      String
+  lead        Lead     @relation(fields: [leadId], references: [id], onDelete: Cascade)
+  title       String
+  scheduledAt DateTime
+  duration    Int      @default(30)
+  type        String   @default("CALL")
+  status      String   @default("SCHEDULED")
+  notes       String?
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+}
+
+model CallLog {
+  id        String   @id @default(cuid())
+  leadId    String
+  lead      Lead     @relation(fields: [leadId], references: [id], onDelete: Cascade)
+  calledAt  DateTime @default(now())
+  duration  Int?
+  outcome   String?
+  notes     String?
+  createdAt DateTime @default(now())
+}
