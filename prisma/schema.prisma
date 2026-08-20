@@ -21,6 +21,7 @@ model Lead {
 
   appointments Appointment[]
   calls        CallLog[]
+  emailLogs    EmailLog[]
 }
 
 model Appointment {
@@ -38,12 +39,27 @@ model Appointment {
 }
 
 model CallLog {
-  id        String   @id @default(cuid())
-  leadId    String
-  lead      Lead     @relation(fields: [leadId], references: [id], onDelete: Cascade)
-  calledAt  DateTime @default(now())
-  duration  Int?
-  outcome   String?
-  notes     String?
-  createdAt DateTime @default(now())
+  id          String   @id @default(cuid())
+  leadId      String
+  lead        Lead     @relation(fields: [leadId], references: [id], onDelete: Cascade)
+  calledAt    DateTime @default(now())
+  duration    Int?
+  outcome     String?
+  notes       String?
+  twilioSid   String?
+  createdAt   DateTime @default(now())
+}
+
+model EmailLog {
+  id         String   @id @default(cuid())
+  leadId     String?
+  lead       Lead?    @relation(fields: [leadId], references: [id], onDelete: SetNull)
+  subject    String
+  body       String
+  recipientEmail String
+  recipientName  String
+  status     String   @default("SENT")
+  campaign   String?
+  sentAt     DateTime @default(now())
+  createdAt  DateTime @default(now())
 }

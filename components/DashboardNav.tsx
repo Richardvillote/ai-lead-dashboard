@@ -2,13 +2,14 @@
 
 import Link from 'next/link'
 import { usePathname, useRouter } from 'next/navigation'
-import { LayoutDashboard, Users, Calendar, Phone, LogOut } from 'lucide-react'
+import { LayoutDashboard, Users, Calendar, Phone, Mail, LogOut } from 'lucide-react'
 
 const NAV_ITEMS = [
   { href: '/dashboard', icon: LayoutDashboard, label: 'Overview' },
   { href: '/dashboard/leads', icon: Users, label: 'Leads' },
   { href: '/dashboard/appointments', icon: Calendar, label: 'Appointments' },
   { href: '/dashboard/calls', icon: Phone, label: 'Call Logs' },
+  { href: '/dashboard/email', icon: Mail, label: 'Email Marketing' },
 ]
 
 export default function DashboardNav() {

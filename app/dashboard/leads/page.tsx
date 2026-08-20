@@ -1,7 +1,7 @@
 'use client'
 
 import { useEffect, useState } from 'react'
-import { Search, Trash2, Phone, Mail, Pencil, Download } from 'lucide-react'
+import { Search, Trash2, Phone, Mail, Pencil, Download, PhoneCall, PhoneOff, CheckCircle } from 'lucide-react'
 import {
   STATUS_COLORS,
   STATUS_LABELS,
@@ -75,6 +75,13 @@ export default function LeadsPage() {
   })
   const [editSaving, setEditSaving] = useState(false)
 
+  // Calling state
+  const [callModal, setCallModal] = useState<{
+    lead: Lead
+    status: 'idle' | 'calling' | 'success' | 'error'
+    message: string
+  } | null>(null)
+
   const load = () =>
     fetch('/api/leads').then(r => r.json()).then(setLeads)
 
@@ -122,6 +129,35 @@ export default function LeadsPage() {
       body: JSON.stringify({ leadId, outcome: outcome.toUpperCase(), notes: '' }),
     })
     load()
+  }
+
+  const dialLead = async (lead: Lead) => {
+    if (!lead.phone) {
+      alert('This lead has no phone number. Edit the lead to add one first.')
+      return
+    }
+    setCallModal({ lead, status: 'calling', message: 'Initiating call via Twilio…' })
+    try {
+      const res = await fetch('/api/calls/dial', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ leadId: lead.id }),
+      })
+      const data = await res.json()
+      if (!res.ok) throw new Error(data.error || 'Call failed')
+      setCallModal({
+        lead,
+        status: 'success',
+        message: `✅ Your phone is ringing! Pick up to be connected to ${lead.name}.`,
+      })
+      load()
+    } catch (e: unknown) {
+      setCallModal({
+        lead,
+        status: 'error',
+        message: e instanceof Error ? e.message : 'Failed to initiate call',
+      })
+    }
   }
 
   const openEdit = (lead: Lead, e: React.MouseEvent) => {
@@ -350,16 +386,33 @@ export default function LeadsPage() {
             )}
           </div>
 
-          <div className="flex gap-2 mb-4">
+          <div className="grid grid-cols-2 gap-2 mb-4">
+            <button
+              onClick={() => dialLead(selectedLead)}
+              className="flex items-center justify-center gap-1.5 bg-green-600 text-white py-2 px-3 rounded-xl text-xs font-medium hover:bg-green-700 transition-colors"
+            >
+              <PhoneCall className="w-3.5 h-3.5" />
+              Call Now
+            </button>
             <button
               onClick={() => logCall(selectedLead.id)}
-              className="flex-1 bg-green-50 text-green-700 py-2 px-3 rounded-xl text-xs font-medium hover:bg-green-100 transition-colors"
+              className="flex items-center justify-center gap-1.5 bg-gray-100 text-gray-700 py-2 px-3 rounded-xl text-xs font-medium hover:bg-gray-200 transition-colors"
             >
+              <Phone className="w-3.5 h-3.5" />
               Log Call
             </button>
             <button
+              onClick={() => {
+                window.location.href = `/dashboard/email?leadId=${selectedLead.id}`
+              }}
+              className="flex items-center justify-center gap-1.5 bg-indigo-50 text-indigo-700 py-2 px-3 rounded-xl text-xs font-medium hover:bg-indigo-100 transition-colors"
+            >
+              <Mail className="w-3.5 h-3.5" />
+              Send Email
+            </button>
+            <button
               onClick={() => setShowAddAppt(true)}
-              className="flex-1 bg-indigo-50 text-indigo-700 py-2 px-3 rounded-xl text-xs font-medium hover:bg-indigo-100 transition-colors"
+              className="flex items-center justify-center gap-1.5 bg-purple-50 text-purple-700 py-2 px-3 rounded-xl text-xs font-medium hover:bg-purple-100 transition-colors"
             >
               Schedule
             </button>
@@ -455,6 +508,68 @@ export default function LeadsPage() {
                 className="flex-1 bg-gray-100 text-gray-700 py-2 rounded-xl text-sm font-medium hover:bg-gray-200"
               >
                 Cancel
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* ── Call Modal ── */}
+      {callModal && (
+        <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-50">
+          <div className="bg-white rounded-2xl p-6 w-96 shadow-2xl text-center">
+            <div className="mb-4">
+              {callModal.status === 'calling' && (
+                <div className="w-16 h-16 bg-green-100 rounded-full flex items-center justify-center mx-auto mb-3">
+                  <PhoneCall className="w-8 h-8 text-green-600 animate-pulse" />
+                </div>
+              )}
+              {callModal.status === 'success' && (
+                <div className="w-16 h-16 bg-green-100 rounded-full flex items-center justify-center mx-auto mb-3">
+                  <CheckCircle className="w-8 h-8 text-green-600" />
+                </div>
+              )}
+              {callModal.status === 'error' && (
+                <div className="w-16 h-16 bg-red-100 rounded-full flex items-center justify-center mx-auto mb-3">
+                  <PhoneOff className="w-8 h-8 text-red-500" />
+                </div>
+              )}
+              <h3 className="font-bold text-gray-900 text-lg mb-1">
+                {callModal.status === 'calling' && `Calling ${callModal.lead.name}…`}
+                {callModal.status === 'success' && 'Call Initiated!'}
+                {callModal.status === 'error' && 'Call Failed'}
+              </h3>
+              {callModal.lead.phone && (
+                <p className="text-sm text-gray-500 mb-2">{callModal.lead.phone}</p>
+              )}
+              <p className={`text-sm ${callModal.status === 'error' ? 'text-red-600' : 'text-gray-600'}`}>
+                {callModal.message}
+              </p>
+              {callModal.status === 'success' && (
+                <p className="text-xs text-gray-400 mt-2">
+                  This call has been logged automatically.
+                </p>
+              )}
+              {callModal.status === 'error' && (
+                <p className="text-xs text-gray-400 mt-2">
+                  Make sure TWILIO_* env vars are set in your .env file.
+                </p>
+              )}
+            </div>
+            <div className="flex gap-3">
+              {callModal.status === 'error' && (
+                <button
+                  onClick={() => dialLead(callModal.lead)}
+                  className="flex-1 bg-green-600 text-white py-2 rounded-xl text-sm font-medium hover:bg-green-700"
+                >
+                  Retry
+                </button>
+              )}
+              <button
+                onClick={() => setCallModal(null)}
+                className="flex-1 bg-gray-100 text-gray-700 py-2 rounded-xl text-sm font-medium hover:bg-gray-200"
+              >
+                {callModal.status === 'calling' ? 'Cancel' : 'Close'}
               </button>
             </div>
           </div>
