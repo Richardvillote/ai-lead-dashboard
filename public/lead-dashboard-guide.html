@@ -1,0 +1,876 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>AI Lead Dashboard — How It Works</title>
+  <style>
+    @import url('https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&display=swap');
+
+    * { margin: 0; padding: 0; box-sizing: border-box; }
+
+    body {
+      font-family: 'Inter', sans-serif;
+      background: #f8f9ff;
+      color: #1e1e2e;
+      font-size: 14px;
+      line-height: 1.7;
+    }
+
+    /* ── Print styles ── */
+    @media print {
+      body { background: white; font-size: 12px; }
+      .no-print { display: none; }
+      .page-break { page-break-before: always; }
+      .card { break-inside: avoid; }
+      header { background: #4f46e5 !important; -webkit-print-color-adjust: exact; print-color-adjust: exact; }
+      .badge { -webkit-print-color-adjust: exact; print-color-adjust: exact; }
+      .step-num { -webkit-print-color-adjust: exact; print-color-adjust: exact; }
+      .feature-icon { -webkit-print-color-adjust: exact; print-color-adjust: exact; }
+      .highlight { -webkit-print-color-adjust: exact; print-color-adjust: exact; }
+      .score-hot, .score-warm, .score-cold { -webkit-print-color-adjust: exact; print-color-adjust: exact; }
+    }
+
+    .container { max-width: 860px; margin: 0 auto; padding: 0 24px 60px; }
+
+    /* ── Header ── */
+    header {
+      background: linear-gradient(135deg, #4f46e5 0%, #7c3aed 100%);
+      color: white;
+      padding: 56px 0 48px;
+      margin-bottom: 48px;
+    }
+    header .container { padding-bottom: 0; }
+    .header-badge {
+      display: inline-flex;
+      align-items: center;
+      gap: 6px;
+      background: rgba(255,255,255,0.2);
+      border: 1px solid rgba(255,255,255,0.3);
+      color: white;
+      font-size: 12px;
+      font-weight: 600;
+      padding: 4px 12px;
+      border-radius: 100px;
+      margin-bottom: 20px;
+      letter-spacing: 0.05em;
+      text-transform: uppercase;
+    }
+    header h1 {
+      font-size: 38px;
+      font-weight: 800;
+      line-height: 1.2;
+      margin-bottom: 14px;
+    }
+    header p {
+      font-size: 16px;
+      opacity: 0.85;
+      max-width: 560px;
+      line-height: 1.6;
+    }
+    .header-meta {
+      display: flex;
+      gap: 24px;
+      margin-top: 28px;
+      font-size: 13px;
+      opacity: 0.75;
+    }
+    .header-meta span { display: flex; align-items: center; gap: 6px; }
+
+    /* ── Print button ── */
+    .print-btn {
+      display: inline-flex;
+      align-items: center;
+      gap: 8px;
+      background: white;
+      color: #4f46e5;
+      font-weight: 600;
+      font-size: 14px;
+      padding: 10px 20px;
+      border-radius: 10px;
+      border: none;
+      cursor: pointer;
+      margin-top: 24px;
+      box-shadow: 0 2px 8px rgba(0,0,0,0.15);
+      transition: all 0.2s;
+    }
+    .print-btn:hover { transform: translateY(-1px); box-shadow: 0 4px 12px rgba(0,0,0,0.2); }
+
+    /* ── Section titles ── */
+    .section-label {
+      font-size: 11px;
+      font-weight: 700;
+      text-transform: uppercase;
+      letter-spacing: 0.08em;
+      color: #6366f1;
+      margin-bottom: 8px;
+    }
+    h2 {
+      font-size: 24px;
+      font-weight: 800;
+      color: #111827;
+      margin-bottom: 6px;
+    }
+    .section-desc {
+      color: #6b7280;
+      margin-bottom: 28px;
+      font-size: 14px;
+    }
+
+    /* ── Cards ── */
+    .card {
+      background: white;
+      border-radius: 16px;
+      border: 1px solid #e5e7eb;
+      padding: 24px;
+      margin-bottom: 16px;
+      box-shadow: 0 1px 4px rgba(0,0,0,0.04);
+    }
+
+    /* ── Overview boxes ── */
+    .overview-grid {
+      display: grid;
+      grid-template-columns: 1fr 1fr;
+      gap: 16px;
+      margin-bottom: 40px;
+    }
+    .overview-card {
+      background: white;
+      border-radius: 16px;
+      border: 1px solid #e5e7eb;
+      padding: 22px;
+      box-shadow: 0 1px 4px rgba(0,0,0,0.04);
+    }
+    .overview-card h3 {
+      font-size: 15px;
+      font-weight: 700;
+      color: #111827;
+      margin-bottom: 6px;
+    }
+    .overview-card p {
+      font-size: 13px;
+      color: #6b7280;
+      line-height: 1.6;
+    }
+    .ov-icon {
+      width: 40px;
+      height: 40px;
+      border-radius: 10px;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      font-size: 20px;
+      margin-bottom: 12px;
+    }
+
+    /* ── Feature rows ── */
+    .feature {
+      display: flex;
+      gap: 20px;
+      align-items: flex-start;
+      background: white;
+      border-radius: 16px;
+      border: 1px solid #e5e7eb;
+      padding: 22px 24px;
+      margin-bottom: 14px;
+      box-shadow: 0 1px 4px rgba(0,0,0,0.04);
+    }
+    .feature-icon {
+      width: 48px;
+      height: 48px;
+      border-radius: 12px;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      font-size: 22px;
+      flex-shrink: 0;
+    }
+    .feature-body h3 {
+      font-size: 15px;
+      font-weight: 700;
+      color: #111827;
+      margin-bottom: 4px;
+    }
+    .feature-body p {
+      font-size: 13px;
+      color: #6b7280;
+      line-height: 1.6;
+    }
+    .benefit-tag {
+      display: inline-block;
+      background: #f0fdf4;
+      color: #15803d;
+      font-size: 11px;
+      font-weight: 600;
+      padding: 2px 8px;
+      border-radius: 100px;
+      margin-top: 8px;
+      border: 1px solid #bbf7d0;
+    }
+
+    /* ── Steps ── */
+    .steps { counter-reset: step; }
+    .step {
+      display: flex;
+      gap: 18px;
+      align-items: flex-start;
+      margin-bottom: 18px;
+    }
+    .step-num {
+      width: 32px;
+      height: 32px;
+      background: #4f46e5;
+      color: white;
+      border-radius: 50%;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      font-size: 13px;
+      font-weight: 700;
+      flex-shrink: 0;
+      margin-top: 2px;
+    }
+    .step-body h4 {
+      font-size: 14px;
+      font-weight: 700;
+      color: #111827;
+      margin-bottom: 3px;
+    }
+    .step-body p { font-size: 13px; color: #6b7280; }
+
+    /* ── Pipeline ── */
+    .pipeline {
+      display: flex;
+      gap: 0;
+      margin: 20px 0 28px;
+    }
+    .pipeline-stage {
+      flex: 1;
+      text-align: center;
+      padding: 14px 8px;
+      font-size: 12px;
+      font-weight: 600;
+      position: relative;
+    }
+    .pipeline-stage:not(:last-child)::after {
+      content: '→';
+      position: absolute;
+      right: -6px;
+      top: 50%;
+      transform: translateY(-50%);
+      color: #9ca3af;
+      font-size: 16px;
+      z-index: 2;
+    }
+    .ps-new    { background: #dbeafe; color: #1d4ed8; border-radius: 10px 0 0 10px; }
+    .ps-cont   { background: #fef9c3; color: #854d0e; }
+    .ps-qual   { background: #f3e8ff; color: #6b21a8; }
+    .ps-closed { background: #dcfce7; color: #15803d; border-radius: 0 10px 10px 0; }
+    .pipeline-stage .ps-label { font-size: 11px; font-weight: 500; opacity: 0.75; margin-top: 2px; }
+
+    /* ── Score badges ── */
+    .score-row { display: flex; gap: 12px; margin: 16px 0; flex-wrap: wrap; }
+    .score-badge {
+      display: flex;
+      align-items: center;
+      gap: 10px;
+      padding: 10px 16px;
+      border-radius: 12px;
+      flex: 1;
+      min-width: 140px;
+    }
+    .score-hot   { background: #fee2e2; color: #b91c1c; border: 1px solid #fecaca; }
+    .score-warm  { background: #ffedd5; color: #c2410c; border: 1px solid #fed7aa; }
+    .score-cold  { background: #dbeafe; color: #1d4ed8; border: 1px solid #bfdbfe; }
+    .score-badge .score-emoji { font-size: 22px; }
+    .score-badge .score-title { font-weight: 700; font-size: 14px; }
+    .score-badge .score-range { font-size: 11px; opacity: 0.75; }
+
+    /* ── Highlight box ── */
+    .highlight {
+      background: linear-gradient(135deg, #eef2ff, #f5f3ff);
+      border: 1px solid #c7d2fe;
+      border-radius: 14px;
+      padding: 20px 24px;
+      margin: 24px 0;
+    }
+    .highlight h4 {
+      font-size: 14px;
+      font-weight: 700;
+      color: #3730a3;
+      margin-bottom: 8px;
+    }
+    .highlight ul {
+      list-style: none;
+      display: grid;
+      grid-template-columns: 1fr 1fr;
+      gap: 6px 24px;
+    }
+    .highlight ul li {
+      font-size: 13px;
+      color: #4338ca;
+      display: flex;
+      align-items: center;
+      gap: 6px;
+    }
+    .highlight ul li::before { content: '✓'; font-weight: 700; color: #4f46e5; }
+
+    /* ── Table ── */
+    table { width: 100%; border-collapse: collapse; margin: 16px 0; }
+    th {
+      text-align: left;
+      font-size: 11px;
+      font-weight: 700;
+      text-transform: uppercase;
+      letter-spacing: 0.05em;
+      color: #6b7280;
+      padding: 10px 14px;
+      background: #f9fafb;
+      border-bottom: 1px solid #e5e7eb;
+    }
+    td {
+      padding: 10px 14px;
+      font-size: 13px;
+      color: #374151;
+      border-bottom: 1px solid #f3f4f6;
+    }
+    tr:last-child td { border-bottom: none; }
+    .badge {
+      display: inline-block;
+      font-size: 11px;
+      font-weight: 600;
+      padding: 2px 8px;
+      border-radius: 100px;
+    }
+    .badge-green { background: #dcfce7; color: #15803d; }
+    .badge-blue  { background: #dbeafe; color: #1d4ed8; }
+    .badge-gray  { background: #f3f4f6; color: #374151; }
+
+    /* ── Tips ── */
+    .tips-grid {
+      display: grid;
+      grid-template-columns: 1fr 1fr;
+      gap: 14px;
+      margin-top: 8px;
+    }
+    .tip {
+      background: white;
+      border-radius: 12px;
+      border: 1px solid #e5e7eb;
+      padding: 16px;
+    }
+    .tip-num {
+      font-size: 11px;
+      font-weight: 700;
+      color: #6366f1;
+      text-transform: uppercase;
+      letter-spacing: 0.06em;
+      margin-bottom: 6px;
+    }
+    .tip h4 { font-size: 13px; font-weight: 700; color: #111827; margin-bottom: 4px; }
+    .tip p  { font-size: 12px; color: #6b7280; line-height: 1.5; }
+
+    /* ── Footer ── */
+    footer {
+      background: #1e1b4b;
+      color: white;
+      padding: 32px 0;
+      margin-top: 48px;
+      text-align: center;
+    }
+    footer p { font-size: 13px; opacity: 0.7; margin-bottom: 4px; }
+    footer strong { opacity: 1; }
+
+    hr { border: none; border-top: 1px solid #e5e7eb; margin: 40px 0; }
+
+    section { margin-bottom: 48px; }
+  </style>
+</head>
+<body>
+
+<!-- ══════════════════════════════════════════════ HEADER -->
+<header>
+  <div class="container">
+    <div class="header-badge">📊 Official Guide</div>
+    <h1>AI Lead Dashboard<br/>How It Works</h1>
+    <p>A complete walkthrough of every feature — from capturing a lead on your website to closing them as a client.</p>
+    <div class="header-meta">
+      <span>📅 2026</span>
+      <span>🔧 Version 1.0</span>
+      <span>🌐 localhost:3000 / dashboard</span>
+    </div>
+    <button class="print-btn no-print" onclick="window.print()">
+      🖨️ Save as PDF
+    </button>
+  </div>
+</header>
+
+<div class="container">
+
+  <!-- ══════════════════════════════════════════════ WHAT IS IT -->
+  <section>
+    <div class="section-label">Introduction</div>
+    <h2>What is the AI Lead Dashboard?</h2>
+    <p class="section-desc">A full-stack web application that helps you capture, organize, track, and close business leads — all in one place.</p>
+
+    <div class="overview-grid">
+      <div class="overview-card">
+        <div class="ov-icon" style="background:#eef2ff;">🌐</div>
+        <h3>Public Landing Page</h3>
+        <p>A professional website your potential clients visit. They fill out a contact form, and their information is instantly saved to your dashboard.</p>
+      </div>
+      <div class="overview-card">
+        <div class="ov-icon" style="background:#f0fdf4;">📊</div>
+        <h3>Private Dashboard</h3>
+        <p>A password-protected admin panel where you manage every lead, track progress, schedule appointments, and log calls.</p>
+      </div>
+      <div class="overview-card">
+        <div class="ov-icon" style="background:#fdf4ff;">🤖</div>
+        <h3>Smart Lead Scoring</h3>
+        <p>Every lead gets an automatic score (0–100) based on their information and activity, so you always know which ones to follow up with first.</p>
+      </div>
+      <div class="overview-card">
+        <div class="ov-icon" style="background:#fff7ed;">📧</div>
+        <h3>Instant Email Alerts</h3>
+        <p>The moment someone submits the form, you receive an email notification so you can respond fast — which dramatically increases conversion rates.</p>
+      </div>
+    </div>
+  </section>
+
+  <hr />
+
+  <!-- ══════════════════════════════════════════════ HOW A LEAD FLOWS -->
+  <section>
+    <div class="section-label">The Lead Journey</div>
+    <h2>How a Lead Moves Through the System</h2>
+    <p class="section-desc">From first contact to closed deal — here's the full path a lead takes.</p>
+
+    <div class="pipeline">
+      <div class="pipeline-stage ps-new">🆕 New<div class="ps-label">Just submitted</div></div>
+      <div class="pipeline-stage ps-cont">📞 Contacted<div class="ps-label">Reached out</div></div>
+      <div class="pipeline-stage ps-qual">⭐ Qualified<div class="ps-label">Serious prospect</div></div>
+      <div class="pipeline-stage ps-closed">✅ Closed<div class="ps-label">Became a client</div></div>
+    </div>
+
+    <div class="steps">
+      <div class="step">
+        <div class="step-num">1</div>
+        <div class="step-body">
+          <h4>Visitor fills out the contact form</h4>
+          <p>On your landing page (<strong>localhost:3000</strong>), a potential client enters their name, email, phone number, the service they're interested in, and a message.</p>
+        </div>
+      </div>
+      <div class="step">
+        <div class="step-num">2</div>
+        <div class="step-body">
+          <h4>Lead is saved to the database instantly</h4>
+          <p>The form submission hits the API, which stores all their details in the database. Their status is automatically set to <strong>New</strong>.</p>
+        </div>
+      </div>
+      <div class="step">
+        <div class="step-num">3</div>
+        <div class="step-body">
+          <h4>You get an email notification</h4>
+          <p>An email is sent to your inbox (configured in <code>.env</code>) with the lead's full details and a direct link to the dashboard. The faster you reply, the better your conversion rate.</p>
+        </div>
+      </div>
+      <div class="step">
+        <div class="step-num">4</div>
+        <div class="step-body">
+          <h4>You review the lead in the dashboard</h4>
+          <p>Log in to <strong>/dashboard/leads</strong>, find the new lead, click on it to see their details, score, message, and history — all in one side panel.</p>
+        </div>
+      </div>
+      <div class="step">
+        <div class="step-num">5</div>
+        <div class="step-body">
+          <h4>You contact them and update the status</h4>
+          <p>After calling or emailing the lead, change their status from <strong>New → Contacted</strong>. Log the call outcome directly in the dashboard with one click.</p>
+        </div>
+      </div>
+      <div class="step">
+        <div class="step-num">6</div>
+        <div class="step-body">
+          <h4>Schedule a follow-up appointment</h4>
+          <p>Book a discovery call, meeting, or product demo directly from the lead's detail panel. It appears in <strong>/dashboard/appointments</strong> so you never miss it.</p>
+        </div>
+      </div>
+      <div class="step">
+        <div class="step-num">7</div>
+        <div class="step-body">
+          <h4>Qualify the lead and close the deal</h4>
+          <p>Move the lead to <strong>Qualified</strong> when they show serious intent, then to <strong>Closed</strong> when they become a paying client. Your conversion rate updates automatically.</p>
+        </div>
+      </div>
+    </div>
+  </section>
+
+  <hr class="page-break" />
+
+  <!-- ══════════════════════════════════════════════ FEATURES -->
+  <section>
+    <div class="section-label">Feature Guide</div>
+    <h2>Every Feature Explained</h2>
+    <p class="section-desc">What each part of the dashboard does and why it matters for your leads.</p>
+
+    <div class="feature">
+      <div class="feature-icon" style="background:#eef2ff;">📊</div>
+      <div class="feature-body">
+        <h3>Dashboard Overview</h3>
+        <p>Your command center. Shows 4 key stats (Total Leads, Conversion Rate, Qualified Leads, New This Month), a 14-day trend chart of incoming leads, a pipeline funnel showing where leads are stuck, and your 6 most recent leads.</p>
+        <span class="benefit-tag">✓ Spot trends before they become problems</span>
+      </div>
+    </div>
+
+    <div class="feature">
+      <div class="feature-icon" style="background:#f0fdf4;">👥</div>
+      <div class="feature-body">
+        <h3>Leads Table (with Search & Filter)</h3>
+        <p>A full list of every lead. Search by name or email. Filter by status (New, Contacted, Qualified, Closed). Change a lead's status directly from the dropdown in the table row — no need to open the lead first.</p>
+        <span class="benefit-tag">✓ Find any lead in under 3 seconds</span>
+      </div>
+    </div>
+
+    <div class="feature">
+      <div class="feature-icon" style="background:#fdf4ff;">🔥</div>
+      <div class="feature-body">
+        <h3>Lead Scoring (Hot / Warm / Cold)</h3>
+        <p>Each lead is automatically scored 0–100 and labelled Hot, Warm, or Cold based on: whether they left a phone number, the length and quality of their message, which service they're interested in, how far along the pipeline they are, whether they have appointments or calls logged, and how recently they submitted.</p>
+        <span class="benefit-tag">✓ Prioritize your time on the leads most likely to close</span>
+      </div>
+    </div>
+
+    <div class="feature">
+      <div class="feature-icon" style="background:#fff7ed;">✏️</div>
+      <div class="feature-body">
+        <h3>Edit Lead Details</h3>
+        <p>Click the pencil icon on any lead to open the edit modal. Update their name, email, phone number, service, and add internal private notes that only you can see. Notes appear highlighted in the detail panel as a reminder.</p>
+        <span class="benefit-tag">✓ Keep your data clean and up to date</span>
+      </div>
+    </div>
+
+    <div class="feature">
+      <div class="feature-icon" style="background:#f0fdf4;">📞</div>
+      <div class="feature-body">
+        <h3>Call Logging</h3>
+        <p>Click "Log Call" on any lead and record the outcome: ANSWERED, VOICEMAIL, or NO_ANSWER. Every call is timestamped and stored. View the full call history in the lead's detail panel or in the dedicated Call Logs page.</p>
+        <span class="benefit-tag">✓ Never forget who you've called or what happened</span>
+      </div>
+    </div>
+
+    <div class="feature">
+      <div class="feature-icon" style="background:#eef2ff;">📅</div>
+      <div class="feature-body">
+        <h3>Appointments Scheduling</h3>
+        <p>Schedule a Phone Call, In-Person Meeting, or Product Demo for any lead. Set the title, date/time, and duration. View all upcoming appointments on the Appointments page, and mark them Completed or Cancelled after they happen.</p>
+        <span class="benefit-tag">✓ Stay organized and never miss a meeting</span>
+      </div>
+    </div>
+
+    <div class="feature">
+      <div class="feature-icon" style="background:#fefce8;">📁</div>
+      <div class="feature-body">
+        <h3>Export to CSV</h3>
+        <p>Click "Export CSV" on the Leads page to download all your lead data as a spreadsheet. Includes name, email, phone, service, status, message, notes, appointment count, call count, and date. Ready for Excel, Google Sheets, or your CRM.</p>
+        <span class="benefit-tag">✓ Share reports or import data into other tools</span>
+      </div>
+    </div>
+
+    <div class="feature">
+      <div class="feature-icon" style="background:#fdf2f8;">🔐</div>
+      <div class="feature-body">
+        <h3>Password-Protected Dashboard</h3>
+        <p>The entire /dashboard section is protected by a proxy layer. Anyone who visits /dashboard without being logged in is automatically redirected to /login. Sessions last 7 days. Logout from the sidebar at any time.</p>
+        <span class="benefit-tag">✓ Your client data stays private and secure</span>
+      </div>
+    </div>
+
+    <div class="feature">
+      <div class="feature-icon" style="background:#f0fdf4;">📧</div>
+      <div class="feature-body">
+        <h3>Email Notifications</h3>
+        <p>Powered by Nodemailer. Every time a new lead submits the form, an email is sent to your inbox with their full details and a link to the dashboard. Configure your Gmail or any SMTP provider in the .env file.</p>
+        <span class="benefit-tag">✓ Respond within minutes — conversion rates drop fast after 5 mins</span>
+      </div>
+    </div>
+  </section>
+
+  <hr class="page-break" />
+
+  <!-- ══════════════════════════════════════════════ LEAD SCORING -->
+  <section>
+    <div class="section-label">Lead Intelligence</div>
+    <h2>Understanding Lead Scores</h2>
+    <p class="section-desc">The scoring system helps you instantly know which leads deserve your attention right now.</p>
+
+    <div class="score-row">
+      <div class="score-badge score-hot">
+        <span class="score-emoji">🔥</span>
+        <div>
+          <div class="score-title">Hot Lead</div>
+          <div class="score-range">Score 65–100 · Follow up immediately</div>
+        </div>
+      </div>
+      <div class="score-badge score-warm">
+        <span class="score-emoji">🌡</span>
+        <div>
+          <div class="score-title">Warm Lead</div>
+          <div class="score-range">Score 35–64 · Follow up within 24h</div>
+        </div>
+      </div>
+      <div class="score-badge score-cold">
+        <span class="score-emoji">❄️</span>
+        <div>
+          <div class="score-title">Cold Lead</div>
+          <div class="score-range">Score 0–34 · Nurture over time</div>
+        </div>
+      </div>
+    </div>
+
+    <div class="card" style="margin-top:20px;">
+      <p style="font-weight:700;color:#111827;margin-bottom:12px;">How the score is calculated:</p>
+      <table>
+        <thead>
+          <tr>
+            <th>Signal</th>
+            <th>Points Added</th>
+            <th>Why it matters</th>
+          </tr>
+        </thead>
+        <tbody>
+          <tr>
+            <td>Phone number provided</td>
+            <td><span class="badge badge-green">+15</span></td>
+            <td>Shows willingness to be reached directly</td>
+          </tr>
+          <tr>
+            <td>Message length &gt; 80 chars</td>
+            <td><span class="badge badge-green">+20</span></td>
+            <td>Detailed messages show genuine interest</td>
+          </tr>
+          <tr>
+            <td>Message length 20–80 chars</td>
+            <td><span class="badge badge-blue">+12</span></td>
+            <td>Some effort to explain their need</td>
+          </tr>
+          <tr>
+            <td>Service interest selected</td>
+            <td><span class="badge badge-green">+10</span></td>
+            <td>They know what they want</td>
+          </tr>
+          <tr>
+            <td>Status: Contacted</td>
+            <td><span class="badge badge-blue">+15</span></td>
+            <td>You've already made contact</td>
+          </tr>
+          <tr>
+            <td>Status: Qualified</td>
+            <td><span class="badge badge-green">+28</span></td>
+            <td>Confirmed as a real prospect</td>
+          </tr>
+          <tr>
+            <td>Status: Closed</td>
+            <td><span class="badge badge-green">+40</span></td>
+            <td>Already a paying client</td>
+          </tr>
+          <tr>
+            <td>Has scheduled appointments</td>
+            <td><span class="badge badge-blue">+8</span></td>
+            <td>Active engagement</td>
+          </tr>
+          <tr>
+            <td>Has logged calls</td>
+            <td><span class="badge badge-blue">+7</span></td>
+            <td>Ongoing communication</td>
+          </tr>
+          <tr>
+            <td>Submitted within last 3 days</td>
+            <td><span class="badge badge-green">+10</span></td>
+            <td>Fresh leads are hottest</td>
+          </tr>
+          <tr>
+            <td>Submitted within last 7 days</td>
+            <td><span class="badge badge-blue">+5</span></td>
+            <td>Still relatively fresh</td>
+          </tr>
+        </tbody>
+      </table>
+    </div>
+
+    <div class="highlight">
+      <h4>💡 Pro Tip: Sort by Score to Build Your Daily Call List</h4>
+      <ul>
+        <li>Start your day on the Leads page</li>
+        <li>Look for all 🔥 Hot leads first</li>
+        <li>Call or email them within the first hour</li>
+        <li>Move to 🌡 Warm leads next</li>
+        <li>Add notes after every interaction</li>
+        <li>Schedule follow-up appointments immediately</li>
+      </ul>
+    </div>
+  </section>
+
+  <hr />
+
+  <!-- ══════════════════════════════════════════════ PAGES REFERENCE -->
+  <section>
+    <div class="section-label">Quick Reference</div>
+    <h2>All Pages at a Glance</h2>
+    <p class="section-desc">Where to go for what.</p>
+
+    <div class="card" style="padding:0;overflow:hidden;">
+      <table style="margin:0;">
+        <thead>
+          <tr>
+            <th>Page</th>
+            <th>URL</th>
+            <th>What you do here</th>
+          </tr>
+        </thead>
+        <tbody>
+          <tr>
+            <td>🏠 Landing Page</td>
+            <td><code>/</code></td>
+            <td>Your public-facing site. Visitors submit leads here.</td>
+          </tr>
+          <tr>
+            <td>🔐 Login</td>
+            <td><code>/login</code></td>
+            <td>Enter your dashboard password to access admin area.</td>
+          </tr>
+          <tr>
+            <td>📊 Overview</td>
+            <td><code>/dashboard</code></td>
+            <td>Stats, charts, pipeline funnel, recent leads.</td>
+          </tr>
+          <tr>
+            <td>👥 Leads</td>
+            <td><code>/dashboard/leads</code></td>
+            <td>Full leads table. Search, filter, edit, score, delete, export.</td>
+          </tr>
+          <tr>
+            <td>📅 Appointments</td>
+            <td><code>/dashboard/appointments</code></td>
+            <td>View upcoming and past meetings. Mark complete or cancel.</td>
+          </tr>
+          <tr>
+            <td>📞 Call Logs</td>
+            <td><code>/dashboard/calls</code></td>
+            <td>Full history of every call logged across all leads.</td>
+          </tr>
+        </tbody>
+      </table>
+    </div>
+  </section>
+
+  <hr class="page-break" />
+
+  <!-- ══════════════════════════════════════════════ TIPS -->
+  <section>
+    <div class="section-label">Best Practices</div>
+    <h2>Tips to Close More Leads</h2>
+    <p class="section-desc">Use the dashboard to its full potential with these proven habits.</p>
+
+    <div class="tips-grid">
+      <div class="tip">
+        <div class="tip-num">Tip 01</div>
+        <h4>⚡ Respond within 5 minutes</h4>
+        <p>Studies show leads are 100x more likely to convert when contacted within 5 minutes. Turn on email notifications so you're notified the moment someone submits the form.</p>
+      </div>
+      <div class="tip">
+        <div class="tip-num">Tip 02</div>
+        <h4>📝 Always add notes after a call</h4>
+        <p>Use the Edit modal to add internal notes to every lead after you speak. Future-you will thank you — especially when following up weeks later.</p>
+      </div>
+      <div class="tip">
+        <div class="tip-num">Tip 03</div>
+        <h4>📅 Schedule the next step immediately</h4>
+        <p>At the end of every call, book the next appointment before hanging up. Use the Schedule button in the lead detail panel — it takes 10 seconds.</p>
+      </div>
+      <div class="tip">
+        <div class="tip-num">Tip 04</div>
+        <h4>🎯 Focus on Hot leads first</h4>
+        <p>Start every morning by checking for 🔥 Hot leads. Don't let a freshly submitted, highly detailed inquiry sit until the afternoon.</p>
+      </div>
+      <div class="tip">
+        <div class="tip-num">Tip 05</div>
+        <h4>📁 Export weekly for reporting</h4>
+        <p>Every Friday, export your leads to CSV. Open in Google Sheets to track trends, analyze which services generate the most leads, and plan next week.</p>
+      </div>
+      <div class="tip">
+        <div class="tip-num">Tip 06</div>
+        <h4>🔄 Move statuses religiously</h4>
+        <p>A lead that stays "New" for a week is probably lost. Move statuses as soon as you take action. Your conversion rate stat is only useful if statuses are accurate.</p>
+      </div>
+      <div class="tip">
+        <div class="tip-num">Tip 07</div>
+        <h4>📊 Check the pipeline chart weekly</h4>
+        <p>If too many leads are stuck in "Contacted" with none moving to "Qualified," it's a signal to change your follow-up approach or adjust your offer.</p>
+      </div>
+      <div class="tip">
+        <div class="tip-num">Tip 08</div>
+        <h4>🌡 Nurture Warm leads over time</h4>
+        <p>Not every lead buys immediately. For Warm leads, log a call, add a note, and schedule a follow-up in 2–3 weeks. Consistent touch points build trust.</p>
+      </div>
+    </div>
+  </section>
+
+  <hr />
+
+  <!-- ══════════════════════════════════════════════ SETUP -->
+  <section>
+    <div class="section-label">Configuration</div>
+    <h2>Setup Checklist</h2>
+    <p class="section-desc">Things to configure before going live.</p>
+
+    <div class="card">
+      <div class="step" style="margin-bottom:14px;">
+        <div class="step-num" style="background:#16a34a;">✓</div>
+        <div class="step-body">
+          <h4>Database is ready</h4>
+          <p>SQLite database (<code>dev.db</code>) is already created and running locally. No setup needed.</p>
+        </div>
+      </div>
+      <div class="step" style="margin-bottom:14px;">
+        <div class="step-num">1</div>
+        <div class="step-body">
+          <h4>Change your dashboard password</h4>
+          <p>Open <code>.env</code> and update <code>DASHBOARD_PASSWORD</code> to something strong. Also update <code>DASHBOARD_SECRET</code> to a random string.</p>
+        </div>
+      </div>
+      <div class="step" style="margin-bottom:14px;">
+        <div class="step-num">2</div>
+        <div class="step-body">
+          <h4>Set up email notifications</h4>
+          <p>In <code>.env</code>, set <code>EMAIL_USER</code> to your Gmail address, <code>EMAIL_PASS</code> to your 16-character App Password (from myaccount.google.com/apppasswords), and <code>EMAIL_TO</code> to where you want notifications sent.</p>
+        </div>
+      </div>
+      <div class="step" style="margin-bottom:14px;">
+        <div class="step-num">3</div>
+        <div class="step-body">
+          <h4>Customize your business name</h4>
+          <p>In <code>.env</code>, update <code>NEXT_PUBLIC_BUSINESS_NAME</code> and <code>NEXT_PUBLIC_BUSINESS_TAGLINE</code> with your real business details.</p>
+        </div>
+      </div>
+      <div class="step">
+        <div class="step-num">4</div>
+        <div class="step-body">
+          <h4>Deploy to Vercel (optional)</h4>
+          <p>Push to GitHub → connect repo on vercel.com → add all your .env variables in the Vercel dashboard → deploy. Your dashboard will be live at a public URL.</p>
+        </div>
+      </div>
+    </div>
+  </section>
+
+</div>
+
+<!-- ══════════════════════════════════════════════ FOOTER -->
+<footer>
+  <div class="container" style="padding-bottom:0;">
+    <p><strong>AI Lead Dashboard</strong> — Built with Next.js 16, Prisma, SQLite & Tailwind CSS</p>
+    <p style="margin-top:6px;">github.com/Richardvillote/ai-lead-dashboard &nbsp;·&nbsp; Generated 2026</p>
+  </div>
+</footer>
+
+</body>
+</html>
