@@ -5,7 +5,7 @@ import {
   Search, MapPin, Phone, Globe, Star, SearchCheck,
   Plus, CheckCircle, Loader2, AlertCircle, ExternalLink,
   Download, Save, X, ChevronDown, ChevronUp, FileSpreadsheet,
-  Navigation, Zap,
+  Navigation, Zap, DatabaseZap,
 } from 'lucide-react'
 
 interface PlaceResult {
@@ -240,6 +240,7 @@ export default function LeadSearchPage() {
   const [expanded, setExpanded]      = useState<Set<string>>(new Set())
   const [totalSaved, setTotalSaved]  = useState(0)
   const [exporting, setExporting]    = useState(false)
+  const [downloadDone, setDownloadDone] = useState(false)
   const [source, setSource]          = useState<Provider>('')    // which provider returned results
   const [activeProvider, setActiveProvider] = useState<Provider>('') // fetched on mount
 
@@ -298,7 +299,7 @@ export default function LeadSearchPage() {
     if (!q.trim()) { queryRef.current?.focus(); return }
     setLoading(true); setError(''); setErrorCode(''); setResults([])
     setSearched(true); setSaveStates({}); setSavedIds(new Set())
-    setAllSaved(false); setTotalSaved(0); setSource('')
+    setAllSaved(false); setTotalSaved(0); setSource(''); setDownloadDone(false)
     try {
       const res  = await fetch('/api/search/places', {
         method:  'POST',
@@ -383,6 +384,7 @@ export default function LeadSearchPage() {
       a.href = url; a.download = `lead-search-${safe}-${date}.xlsx`
       document.body.appendChild(a); a.click()
       document.body.removeChild(a); URL.revokeObjectURL(url)
+      setDownloadDone(true)
     } catch (e: unknown) {
       setError(e instanceof Error ? e.message : 'Export failed')
     } finally { setExporting(false) }
@@ -584,6 +586,53 @@ export default function LeadSearchPage() {
             {source === 'yelp' && ' · Website URLs not available via Yelp — add a Google key for full details.'}
             {source === 'osm'  && ' · Data from OpenStreetMap — completeness varies by region.'}
           </p>
+        </div>
+      )}
+
+      {/* ── "Also add to Leads" banner after download ──────────────────────── */}
+      {downloadDone && !allSaved && results.length > 0 && (
+        <div className="mb-4 flex items-center justify-between gap-3 bg-indigo-50 border border-indigo-200 rounded-2xl px-5 py-4 animate-in fade-in slide-in-from-top-2 duration-300">
+          <div className="flex items-center gap-3">
+            <DatabaseZap className="w-5 h-5 text-indigo-600 shrink-0" />
+            <div>
+              <p className="text-sm font-semibold text-indigo-900">
+                Downloaded! ✅ &nbsp;Add these {results.filter(r => !savedIds.has(r.placeId)).length} businesses to your Leads database?
+              </p>
+              <p className="text-xs text-indigo-600 mt-0.5">One click — they\'ll appear in your Leads list for follow-up.</p>
+            </div>
+          </div>
+          <div className="flex items-center gap-2 shrink-0">
+            <button
+              onClick={saveAll}
+              disabled={savingAll}
+              className="flex items-center gap-2 bg-indigo-600 text-white px-4 py-2.5 rounded-xl text-sm font-bold hover:bg-indigo-700 transition-colors disabled:opacity-60 shadow-sm"
+            >
+              {savingAll ? <Loader2 className="w-4 h-4 animate-spin" /> : <DatabaseZap className="w-4 h-4" />}
+              {savingAll ? 'Adding...' : 'Yes, Add All'}
+            </button>
+            <button
+              onClick={() => setDownloadDone(false)}
+              className="p-2 text-indigo-400 hover:text-indigo-600 transition-colors rounded-lg hover:bg-indigo-100"
+              title="Dismiss"
+            >
+              <X className="w-4 h-4" />
+            </button>
+          </div>
+        </div>
+      )}
+
+      {/* ── Already-saved confirmation banner ──────────────────────────────────── */}
+      {downloadDone && allSaved && results.length > 0 && (
+        <div className="mb-4 flex items-center justify-between gap-3 bg-green-50 border border-green-200 rounded-2xl px-5 py-3">
+          <div className="flex items-center gap-2 text-green-800">
+            <CheckCircle className="w-5 h-5 text-green-500 shrink-0" />
+            <p className="text-sm font-semibold">
+              All {totalSaved} leads downloaded &amp; saved to your database! 🎉
+            </p>
+          </div>
+          <button onClick={() => setDownloadDone(false)} className="text-green-400 hover:text-green-600 transition-colors">
+            <X className="w-4 h-4" />
+          </button>
         </div>
       )}
 
