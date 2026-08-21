@@ -1,7 +1,7 @@
 'use client'
 
-import { useEffect, useState } from 'react'
-import { Search, Trash2, Phone, Mail, Pencil, Download, PhoneCall, PhoneOff, CheckCircle, UserPlus } from 'lucide-react'
+import { useEffect, useRef, useState } from 'react'
+import { Search, Trash2, Phone, Mail, Pencil, Download, Upload, PhoneCall, PhoneOff, CheckCircle, UserPlus, X } from 'lucide-react'
 import {
   STATUS_COLORS,
   STATUS_LABELS,
@@ -39,6 +39,13 @@ interface Lead {
   calls: CallRecord[]
 }
 
+interface ImportResult {
+  imported: number
+  skipped: number
+  total: number
+  errors: string[]
+}
+
 const SERVICES = [
   'Consulting',
   'Web Development',
@@ -70,6 +77,53 @@ export default function LeadsPage() {
     name: '', email: '', phone: '', service: '', message: '', notes: '',
   })
   const [addSaving, setAddSaving] = useState(false)
+
+  // ── Import Excel ────────────────────────────────────────────────────────────
+  const importRef = useRef<HTMLInputElement>(null)
+  const [importing, setImporting] = useState(false)
+  const [importResult, setImportResult] = useState<ImportResult | null>(null)
+
+  const handleImport = async (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0]
+    if (!file) return
+    // Reset the input so the same file can be re-imported if needed
+    e.target.value = ''
+
+    setImporting(true)
+    setImportResult(null)
+
+    try {
+      const formData = new FormData()
+      formData.append('file', file)
+
+      const res = await fetch('/api/leads/import', {
+        method: 'POST',
+        body: formData,
+      })
+      const data = await res.json()
+
+      if (!res.ok) {
+        setImportResult({
+          imported: 0,
+          skipped: 0,
+          total: 0,
+          errors: [data.error || 'Import failed. Please check your file format.'],
+        })
+      } else {
+        setImportResult(data)
+        load()
+      }
+    } catch {
+      setImportResult({
+        imported: 0,
+        skipped: 0,
+        total: 0,
+        errors: ['Network error — could not reach the server.'],
+      })
+    } finally {
+      setImporting(false)
+    }
+  }
 
   const saveNewLead = async () => {
     if (!addForm.name || !addForm.email) return
@@ -238,6 +292,25 @@ export default function LeadsPage() {
               <UserPlus className="w-4 h-4" />
               Add Lead
             </button>
+
+            {/* ── Import Excel Button ── */}
+            <button
+              onClick={() => importRef.current?.click()}
+              disabled={importing}
+              className="flex items-center gap-2 bg-emerald-600 text-white px-4 py-2 rounded-xl text-sm font-medium hover:bg-emerald-700 disabled:opacity-60 transition-colors shadow-sm"
+            >
+              <Upload className="w-4 h-4" />
+              {importing ? 'Importing…' : 'Import Excel'}
+            </button>
+            {/* Hidden file input */}
+            <input
+              ref={importRef}
+              type="file"
+              accept=".xlsx,.xls,.csv"
+              onChange={handleImport}
+              className="hidden"
+            />
+
             <button
               onClick={exportCSV}
               className="flex items-center gap-2 bg-white border border-gray-200 text-gray-700 px-4 py-2 rounded-xl text-sm font-medium hover:border-indigo-300 hover:text-indigo-700 transition-colors shadow-sm"
@@ -247,6 +320,53 @@ export default function LeadsPage() {
             </button>
           </div>
         </div>
+
+        {/* ── Import Result Banner ── */}
+        {importResult && (
+          <div className={`mb-4 flex items-start justify-between gap-3 rounded-2xl px-5 py-4 border ${
+            importResult.errors.length > 0 && importResult.imported === 0
+              ? 'bg-red-50 border-red-200'
+              : 'bg-emerald-50 border-emerald-200'
+          }`}>
+            <div className="flex-1">
+              {importResult.imported > 0 && (
+                <p className="text-sm font-semibold text-emerald-800">
+                  ✅ Imported {importResult.imported} lead{importResult.imported !== 1 ? 's' : ''} successfully!
+                  {importResult.skipped > 0 && (
+                    <span className="font-normal text-emerald-700">
+                      {' '}({importResult.skipped} duplicate{importResult.skipped !== 1 ? 's' : ''} skipped)
+                    </span>
+                  )}
+                </p>
+              )}
+              {importResult.imported === 0 && importResult.skipped > 0 && (
+                <p className="text-sm font-semibold text-amber-800">
+                  ⚠️ All {importResult.skipped} rows were duplicates — nothing new imported.
+                </p>
+              )}
+              {importResult.errors.length > 0 && (
+                <ul className="mt-1 space-y-0.5">
+                  {importResult.errors.slice(0, 5).map((err, i) => (
+                    <li key={i} className="text-xs text-red-700">• {err}</li>
+                  ))}
+                  {importResult.errors.length > 5 && (
+                    <li className="text-xs text-red-500">…and {importResult.errors.length - 5} more errors</li>
+                  )}
+                </ul>
+              )}
+              <p className="text-xs text-gray-500 mt-1">
+                File had {importResult.total} data row{importResult.total !== 1 ? 's' : ''} total.
+                Tip: Column headers can be Name, Email, Phone, Business Type, Address, Website, etc.
+              </p>
+            </div>
+            <button
+              onClick={() => setImportResult(null)}
+              className="text-gray-400 hover:text-gray-600 shrink-0 mt-0.5"
+            >
+              <X className="w-4 h-4" />
+            </button>
+          </div>
+        )}
 
         {/* Filters & Search */}
         <div className="flex gap-3 mb-4">
