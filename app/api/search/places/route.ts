@@ -64,7 +64,6 @@ export async function POST(req: NextRequest) {
     console.error('Lead search error:', err)
     const raw     = err instanceof Error ? err : null
     const message = raw?.message ?? 'Search failed'
-    // Bubble up any custom code attached to the error
     const code    = (raw as { code?: string })?.code ?? ''
     return NextResponse.json({ error: message, code }, { status: 500 })
   }
@@ -134,8 +133,7 @@ async function googleSearch(query: string, location: string): Promise<PlaceResul
 
   if (data.status && data.status !== 'OK' && data.status !== 'ZERO_RESULTS') {
     const errMsg = googleStatusError(data.status, data.error_message)
-    const err = Object.assign(new Error(errMsg), { code: data.status })
-    throw err
+    throw Object.assign(new Error(errMsg), { code: data.status })
   }
 
   if (!data.results?.length) return []
@@ -204,7 +202,7 @@ async function yelpSearch(query: string, location: string): Promise<PlaceResult[
     name:           b.name,
     address:        b.location?.display_address?.join(', ') ?? '',
     phone:          b.display_phone || null,
-    website:        null, // Yelp search doesn't expose business websites
+    website:        null,
     rating:         b.rating         ?? null,
     totalRatings:   b.review_count   ?? null,
     types:          b.categories?.map(c => c.title) ?? [],
@@ -216,178 +214,190 @@ async function yelpSearch(query: string, location: string): Promise<PlaceResult[
 }
 
 // ===========================================================================
-//  PROVIDER 3 — OPENSTREETMAP (Overpass + Nominatim) — zero API key needed
+//  PROVIDER 3 — NOMINATIM (OpenStreetMap) — zero API key needed
+//  Uses structured Nominatim search (amenity/shop/office + city) for category
+//  searches, and falls back to text search for unrecognised terms.
 // ===========================================================================
 
-// Map common search terms to OSM tags
-const OSM_TAG_MAP: [RegExp, string][] = [
-  [/plumb/i,                              '["shop"="plumber"]'],
-  [/electr/i,                             '["shop"="electrician"]'],
-  [/paint/i,                              '["shop"="painter"]'],
-  [/hvac|heating|cooling|air\s*con/i,     '["shop"="hvac"]'],
-  [/dentist/i,                            '["amenity"="dentist"]'],
-  [/doctor|physician|clinic|medical/i,    '["amenity"="doctors"]'],
-  [/hospital/i,                           '["amenity"="hospital"]'],
-  [/pharmacy|drug\s*store/i,              '["amenity"="pharmacy"]'],
-  [/bank/i,                               '["amenity"="bank"]'],
-  [/restaurant|dining/i,                  '["amenity"="restaurant"]'],
-  [/cafe|coffee/i,                        '["amenity"="cafe"]'],
-  [/lawyer|attorney|law\s*firm/i,         '["office"="lawyer"]'],
-  [/accountant|accounting|cpa/i,          '["office"="accountant"]'],
-  [/real\s*estate|realtor/i,              '["office"="estate_agent"]'],
-  [/insurance/i,                          '["office"="insurance"]'],
-  [/gym|fitness|crossfit/i,               '["leisure"="fitness_centre"]'],
-  [/hair\s*salon|salon/i,                 '["shop"="hairdresser"]'],
-  [/barber/i,                             '["shop"="barber"]'],
-  [/auto\s*repair|car\s*repair|mechanic/, '["shop"="car_repair"]'],
-  [/car\s*dealer/i,                       '["shop"="car"]'],
-  [/hotel|motel|lodging/i,               '["tourism"="hotel"]'],
-  [/school/i,                             '["amenity"="school"]'],
-  [/university|college/i,                 '["amenity"="university"]'],
-  [/contractor|construction/i,            '["office"="construction_company"]'],
-  [/moving/i,                             '["office"="moving_company"]'],
-  [/grocery|supermarket/i,                '["shop"="supermarket"]'],
-  [/bakery/i,                             '["shop"="bakery"]'],
-  [/vet|veterinarian/i,                   '["amenity"="veterinary"]'],
-  [/child\s*care|daycare|nursery/i,       '["amenity"="childcare"]'],
-  [/church|chapel|worship/i,              '["amenity"="place_of_worship"]'],
-  [/plumber/i,                            '["shop"="plumber"]'],
+// OSM key → value mappings for structured Nominatim search
+// e.g. "dentists" → amenity=dentist → Nominatim returns actual dental offices
+const NOMINATIM_TAG_MAP: [RegExp, string, string][] = [
+  [/plumb/i,                              'shop',    'plumber'],
+  [/electr/i,                             'shop',    'electrician'],
+  [/paint/i,                              'shop',    'painter'],
+  [/hvac|heating|cooling|air\s*con/i,     'shop',    'hvac'],
+  [/dentist/i,                            'amenity', 'dentist'],
+  [/doctor|physician|clinic|medical/i,    'amenity', 'doctors'],
+  [/hospital/i,                           'amenity', 'hospital'],
+  [/pharmacy|drug\s*store/i,              'amenity', 'pharmacy'],
+  [/bank/i,                               'amenity', 'bank'],
+  [/restaurant|dining/i,                  'amenity', 'restaurant'],
+  [/cafe|coffee/i,                        'amenity', 'cafe'],
+  [/lawyer|attorney|law\s*firm/i,         'office',  'lawyer'],
+  [/accountant|accounting|cpa/i,          'office',  'accountant'],
+  [/real\s*estate|realtor/i,              'office',  'estate_agent'],
+  [/insurance/i,                          'office',  'insurance'],
+  [/gym|fitness|crossfit/i,               'leisure', 'fitness_centre'],
+  [/hair\s*salon|salon/i,                 'shop',    'hairdresser'],
+  [/barber/i,                             'shop',    'barber'],
+  [/auto\s*repair|car\s*repair|mechanic/i,'shop',    'car_repair'],
+  [/car\s*dealer/i,                       'shop',    'car'],
+  [/hotel|motel|lodging/i,                'tourism', 'hotel'],
+  [/school/i,                             'amenity', 'school'],
+  [/university|college/i,                 'amenity', 'university'],
+  [/grocery|supermarket/i,                'shop',    'supermarket'],
+  [/bakery/i,                             'shop',    'bakery'],
+  [/vet|veterinarian/i,                   'amenity', 'veterinary'],
+  [/child\s*care|daycare|nursery/i,       'amenity', 'childcare'],
+  [/church|chapel|worship/i,              'amenity', 'place_of_worship'],
+  [/bar|pub/i,                            'amenity', 'bar'],
+  [/fast\s*food/i,                        'amenity', 'fast_food'],
+  [/hotel/i,                              'tourism', 'hotel'],
 ]
 
-function queryToOsmTag(q: string): string | null {
-  for (const [re, tag] of OSM_TAG_MAP) {
-    if (re.test(q)) return tag
+function queryToNominatimTag(q: string): { key: string; value: string } | null {
+  for (const [re, key, value] of NOMINATIM_TAG_MAP) {
+    if (re.test(q)) return { key, value }
   }
   return null
 }
 
-async function nominatimGeocode(location: string): Promise<{ lat: number; lon: number } | null> {
-  try {
-    const url = `https://nominatim.openstreetmap.org/search?q=${encodeURIComponent(location)}&format=json&limit=1`
-    const res  = await fetch(url, {
-      headers: { 'User-Agent': 'LeadDashboard/1.0 (lead-finder)' },
-      signal:  AbortSignal.timeout(8000),
-    })
-    const data = await res.json()
-    if (!Array.isArray(data) || !data[0]) return null
-    return { lat: parseFloat(data[0].lat), lon: parseFloat(data[0].lon) }
-  } catch { return null }
+// OSM classes that represent actual businesses / POIs
+const OSM_BUSINESS_CLASSES = new Set([
+  'amenity', 'shop', 'craft', 'office', 'tourism',
+  'leisure', 'healthcare', 'emergency', 'club',
+])
+
+interface NominatimResult {
+  place_id: number
+  osm_type: string
+  osm_id: number
+  lat: string
+  lon: string
+  class: string
+  type: string
+  name?: string
+  display_name: string
+  address: {
+    house_number?: string
+    road?: string
+    suburb?: string
+    city?: string
+    town?: string
+    state?: string
+    postcode?: string
+    country?: string
+  }
+  extratags?: {
+    phone?: string
+    website?: string
+    email?: string
+    opening_hours?: string
+    'contact:phone'?: string
+    'contact:website'?: string
+  }
 }
 
-interface OsmElement {
-  type: 'node' | 'way' | 'relation'
-  id: number
-  lat?: number; lon?: number
-  center?: { lat: number; lon: number }
-  tags?: Record<string, string>
-}
+function nominatimToResult(
+  r: NominatimResult,
+  structured: boolean,
+  expectedClass?: string       // e.g. "shop" | "amenity" | "office" | "leisure" | "tourism"
+): PlaceResult | null {
+  if (!r.name) return null
 
-function osmToResult(el: OsmElement): PlaceResult | null {
-  const tags = el.tags ?? {}
-  if (!tags.name) return null
+  // For structured queries, ensure the result class matches what we asked for
+  // (prevents cities/regions being returned when e.g. shop=electrician finds nothing)
+  if (structured && expectedClass && r.class !== expectedClass) return null
 
-  const addr = [
-    tags['addr:housenumber'],
-    tags['addr:street'],
-    tags['addr:city'],
-    tags['addr:state'],
-    tags['addr:postcode'],
-  ].filter(Boolean).join(', ') || tags['addr:full'] || ''
+  // For text-based queries, only show actual business/POI classes
+  if (!structured && !OSM_BUSINESS_CLASSES.has(r.class)) return null
 
-  const lat = el.lat ?? el.center?.lat ?? null
-  const lng = el.lon ?? el.center?.lon ?? null
+  const a = r.address
+  const addrParts = [
+    a.house_number,
+    a.road,
+    a.suburb,
+    a.city || a.town,
+    a.state,
+    a.postcode,
+  ].filter(Boolean)
+  const address = addrParts.length ? addrParts.join(', ') : r.display_name
 
-  const rawType = tags.amenity ?? tags.shop ?? tags.office ?? tags.leisure ?? tags.tourism ?? ''
-  const typeLabel = rawType.replace(/_/g, ' ').replace(/\b\w/g, c => c.toUpperCase())
+  const ext     = r.extratags ?? {}
+  const phone   = ext.phone   ?? ext['contact:phone']   ?? null
+  const website = ext.website ?? ext['contact:website'] ?? null
+  const typeLabel = r.type.replace(/_/g, ' ').replace(/\b\w/g, c => c.toUpperCase())
 
-  const mapsUrl = lat && lng
-    ? `https://www.openstreetmap.org/?mlat=${lat}&mlon=${lng}&zoom=16`
-    : null
+  const lat = parseFloat(r.lat)
+  const lng = parseFloat(r.lon)
+  const mapsUrl = `https://www.openstreetmap.org/?mlat=${lat}&mlon=${lng}&zoom=16`
 
   return {
-    placeId:        `osm_${el.type}_${el.id}`,
-    name:           tags.name,
-    address:        addr,
-    phone:          tags.phone ?? tags['contact:phone'] ?? null,
-    website:        tags.website ?? tags['contact:website'] ?? null,
+    placeId:        `osm_${r.osm_type}_${r.osm_id}`,
+    name:           r.name,
+    address,
+    phone,
+    website,
     rating:         null,
     totalRatings:   null,
-    types:          typeLabel ? [typeLabel] : [],
+    types:          [typeLabel],
     mapsUrl,
     businessStatus: null,
-    lat:            lat ?? null,
-    lng:            lng ?? null,
+    lat,
+    lng,
   }
+}
+
+const NOMINATIM_HEADERS = {
+  'User-Agent': 'LeadDashboard/1.0 (business-lead-finder)',
+  'Accept':     'application/json',
+}
+
+async function nominatimFetch(params: URLSearchParams): Promise<NominatimResult[]> {
+  const res = await fetch(
+    `https://nominatim.openstreetmap.org/search?${params}`,
+    { headers: NOMINATIM_HEADERS, signal: AbortSignal.timeout(12000) }
+  )
+  if (!res.ok) throw new Error(`OpenStreetMap search error ${res.status}`)
+  return res.json()
 }
 
 async function osmSearch(query: string, location: string): Promise<PlaceResult[]> {
-  const RADIUS = 10000 // 10 km
+  const tagInfo = queryToNominatimTag(query)
 
-  // Geocode location if provided
-  const coords = location ? await nominatimGeocode(location) : null
-  const tagFilter = queryToOsmTag(query)
-
-  // Build Overpass query
-  let overpassQuery: string
-
-  if (tagFilter && coords) {
-    // Best case: known tag + geocoded location
-    overpassQuery = `
-[out:json][timeout:25];
-(
-  node${tagFilter}(around:${RADIUS},${coords.lat},${coords.lon});
-  way${tagFilter}(around:${RADIUS},${coords.lat},${coords.lon});
-);
-out body center 20;`
-
-  } else if (coords) {
-    // Known location, search by name
-    const safe = query.replace(/[^a-zA-Z0-9 ]/g, '').trim()
-    overpassQuery = `
-[out:json][timeout:25];
-(
-  node["name"~"${safe}",i](around:${RADIUS},${coords.lat},${coords.lon});
-  way["name"~"${safe}",i](around:${RADIUS},${coords.lat},${coords.lon});
-);
-out body center 20;`
-
-  } else if (tagFilter) {
-    // No location but known category — limit to 20 worldwide hits
-    overpassQuery = `
-[out:json][timeout:20];
-(
-  node${tagFilter}["name"](if: count_tags() > 3);
-  way${tagFilter}["name"](if: count_tags() > 3);
-);
-out body center 20;`
-
-  } else {
-    // No location, unknown category — broad name search
-    const safe = query.replace(/[^a-zA-Z0-9 ]/g, '').trim()
-    overpassQuery = `
-[out:json][timeout:20];
-(
-  node["name"~"${safe}",i]["amenity"];
-  node["name"~"${safe}",i]["shop"];
-  node["name"~"${safe}",i]["office"];
-);
-out body 20;`
+  const base: Record<string, string> = {
+    format: 'json', limit: '20', addressdetails: '1', extratags: '1', dedupe: '1',
   }
 
-  const res = await fetch('https://overpass-api.de/api/interpreter', {
-    method:  'POST',
-    body:    `data=${encodeURIComponent(overpassQuery)}`,
-    headers: { 'Content-Type': 'application/x-www-form-urlencoded' },
-    signal:  AbortSignal.timeout(30000),
-  })
+  const seen = new Set<string>()
+  const results: PlaceResult[] = []
 
-  if (!res.ok) throw new Error(`OpenStreetMap API error ${res.status}`)
+  // ── Step 1: Structured search (amenity=dentist&city=Chicago) ────────────
+  if (tagInfo) {
+    const p = { ...base, [tagInfo.key]: tagInfo.value }
+    if (location) {
+      const parts = location.split(',').map(s => s.trim()).filter(Boolean)
+      if (parts[0]) p['city']    = parts[0]
+      if (parts[1]) p['state']   = parts[1]
+      if (parts[2]) p['country'] = parts[2]
+    }
+    const data = await nominatimFetch(new URLSearchParams(p))
+    for (const r of data) {
+      const pr = nominatimToResult(r, true, tagInfo.key)
+      if (pr && !seen.has(pr.placeId)) { seen.add(pr.placeId); results.push(pr) }
+    }
+  }
 
-  const data = await res.json()
-  const elements: OsmElement[] = data.elements ?? []
+  // ── Step 2: Text search fallback (always runs; adds any missed results) ──
+  // Skip if we already have plenty from structured search
+  if (results.length < 10) {
+    const q = location ? `${query} ${location}` : query
+    const data = await nominatimFetch(new URLSearchParams({ ...base, q }))
+    for (const r of data) {
+      const pr = nominatimToResult(r, false)
+      if (pr && !seen.has(pr.placeId)) { seen.add(pr.placeId); results.push(pr) }
+    }
+  }
 
-  return elements
-    .map(osmToResult)
-    .filter((r): r is PlaceResult => r !== null)
-    .slice(0, 15)
+  return results.slice(0, 15)
 }
