@@ -2,9 +2,9 @@
 
 import { useState, useRef } from 'react'
 import {
-  Search, MapPin, Phone, Globe, Star, Building2,
+  Search, MapPin, Phone, Globe, Star, SearchCheck,
   Plus, CheckCircle, Loader2, AlertCircle, ExternalLink,
-  Download, Save, X, ChevronDown, ChevronUp,
+  Download, Save, X, ChevronDown, ChevronUp, FileSpreadsheet,
 } from 'lucide-react'
 
 interface PlaceResult {
@@ -64,7 +64,7 @@ const QUICK_SEARCHES = [
   'Gyms', 'Accountants', 'Contractors', 'Insurance Agents',
 ]
 
-export default function BusinessSearchPage() {
+export default function LeadSearchPage() {
   const [query, setQuery]       = useState('')
   const [location, setLocation] = useState('')
   const [results, setResults]   = useState<PlaceResult[]>([])
@@ -77,8 +77,10 @@ export default function BusinessSearchPage() {
   const [allSaved, setAllSaved] = useState(false)
   const [expanded, setExpanded] = useState<Set<string>>(new Set())
   const [totalSaved, setTotalSaved] = useState(0)
+  const [exporting, setExporting] = useState(false)
   const queryRef = useRef<HTMLInputElement>(null)
 
+  // ── Search ────────────────────────────────────────────────────────────────
   const doSearch = async (q = query, loc = location) => {
     if (!q.trim()) { queryRef.current?.focus(); return }
     setLoading(true)
@@ -88,6 +90,7 @@ export default function BusinessSearchPage() {
     setSaveStates({})
     setSavedIds(new Set())
     setAllSaved(false)
+    setTotalSaved(0)
     try {
       const res = await fetch('/api/search/places', {
         method: 'POST',
@@ -104,6 +107,7 @@ export default function BusinessSearchPage() {
     }
   }
 
+  // ── Save single lead ──────────────────────────────────────────────────────
   const saveLead = async (place: PlaceResult): Promise<boolean> => {
     setSaveStates(p => ({ ...p, [place.placeId]: 'saving' }))
     try {
@@ -112,7 +116,7 @@ export default function BusinessSearchPage() {
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
           name: place.name,
-          email: '',           // Google Places doesn't provide emails
+          email: '',
           phone: place.phone || '',
           service: niceType(place.types),
           message: [
@@ -125,10 +129,8 @@ export default function BusinessSearchPage() {
           notes: place.website || place.mapsUrl || '',
         }),
       })
-      // 201 = created, 200 = ok
-      if (res.status === 409 || !res.ok) {
+      if (!res.ok) {
         const body = await res.json()
-        // If it's a duplicate email error it's ok, treat as saved
         if (body.error?.toLowerCase().includes('unique')) {
           setSaveStates(p => ({ ...p, [place.placeId]: 'saved' }))
           setSavedIds(p => new Set([...p, place.placeId]))
@@ -140,12 +142,13 @@ export default function BusinessSearchPage() {
       setSavedIds(p => new Set([...p, place.placeId]))
       setTotalSaved(n => n + 1)
       return true
-    } catch (e: unknown) {
+    } catch {
       setSaveStates(p => ({ ...p, [place.placeId]: 'error' }))
       return false
     }
   }
 
+  // ── Save all ──────────────────────────────────────────────────────────────
   const saveAll = async () => {
     const unsaved = results.filter(r => !savedIds.has(r.placeId))
     if (unsaved.length === 0) return
@@ -153,6 +156,35 @@ export default function BusinessSearchPage() {
     await Promise.all(unsaved.map(saveLead))
     setSavingAll(false)
     setAllSaved(true)
+  }
+
+  // ── GET LEADS: export search results directly to Excel ───────────────────
+  const getLeads = async () => {
+    if (results.length === 0) return
+    setExporting(true)
+    try {
+      const res = await fetch('/api/search/export', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ results, query, location }),
+      })
+      if (!res.ok) throw new Error('Export failed')
+      const blob = await res.blob()
+      const url = URL.createObjectURL(blob)
+      const a = document.createElement('a')
+      const date = new Date().toISOString().split('T')[0]
+      const safeName = (query || 'leads').replace(/[^a-z0-9]/gi, '-').toLowerCase()
+      a.href = url
+      a.download = `lead-search-${safeName}-${date}.xlsx`
+      document.body.appendChild(a)
+      a.click()
+      document.body.removeChild(a)
+      URL.revokeObjectURL(url)
+    } catch (e: unknown) {
+      setError(e instanceof Error ? e.message : 'Export failed')
+    } finally {
+      setExporting(false)
+    }
   }
 
   const toggleExpand = (id: string) => {
@@ -167,18 +199,18 @@ export default function BusinessSearchPage() {
 
   return (
     <div>
-      {/* Header */}
+      {/* ── Header ─────────────────────────────────────────────────────────── */}
       <div className="mb-6">
         <h1 className="text-2xl font-bold text-gray-900 flex items-center gap-2">
-          <Building2 className="w-6 h-6 text-indigo-600" />
-          Business Lead Finder
+          <SearchCheck className="w-6 h-6 text-indigo-600" />
+          Lead Search
         </h1>
         <p className="text-sm text-gray-500 mt-1">
-          Search Google Maps for businesses · save them as leads instantly
+          Search Google Maps for any business type · export all leads to a spreadsheet instantly
         </p>
       </div>
 
-      {/* Search Box */}
+      {/* ── Search Box ─────────────────────────────────────────────────────── */}
       <div className="bg-white rounded-2xl border border-gray-100 shadow-sm p-5 mb-5">
         <div className="flex flex-col sm:flex-row gap-3">
           {/* Business type */}
@@ -189,7 +221,7 @@ export default function BusinessSearchPage() {
               value={query}
               onChange={e => setQuery(e.target.value)}
               onKeyDown={e => e.key === 'Enter' && doSearch()}
-              placeholder="Type of business  e.g. plumbers, dentists, law firms…"
+              placeholder="Business type  e.g. plumbing, dentists, law firms…"
               className="w-full pl-10 pr-4 py-3 border border-gray-200 rounded-xl text-sm outline-none focus:ring-2 focus:ring-indigo-500"
             />
           </div>
@@ -201,7 +233,7 @@ export default function BusinessSearchPage() {
               value={location}
               onChange={e => setLocation(e.target.value)}
               onKeyDown={e => e.key === 'Enter' && doSearch()}
-              placeholder="City or area (optional)"
+              placeholder="City or area  e.g. New York"
               className="w-full pl-10 pr-4 py-3 border border-gray-200 rounded-xl text-sm outline-none focus:ring-2 focus:ring-indigo-500"
             />
           </div>
@@ -233,7 +265,7 @@ export default function BusinessSearchPage() {
         </div>
       </div>
 
-      {/* API key notice */}
+      {/* ── API Key Notice ──────────────────────────────────────────────────── */}
       {error?.includes('GOOGLE_PLACES_API_KEY') || error?.includes('not set') ? (
         <div className="mb-5 bg-amber-50 border border-amber-200 rounded-2xl p-5">
           <div className="flex gap-3">
@@ -258,53 +290,84 @@ export default function BusinessSearchPage() {
         </div>
       ) : null}
 
-      {/* Results header */}
+      {/* ── Results Header + Action Buttons ─────────────────────────────────── */}
       {results.length > 0 && (
-        <div className="flex items-center justify-between mb-4">
-          <div className="flex items-center gap-3">
-            <h2 className="font-semibold text-gray-900">
-              {results.length} businesses found
-            </h2>
-            {totalSaved > 0 && (
-              <span className="bg-green-100 text-green-700 text-xs px-2.5 py-1 rounded-full font-medium">
-                ✅ {totalSaved} saved to spreadsheet
-              </span>
-            )}
-          </div>
-          <div className="flex items-center gap-2">
-            {/* Export saved as Excel */}
-            {totalSaved > 0 && (
-              <a
-                href="/api/leads/export?format=xlsx"
-                className="flex items-center gap-1.5 bg-emerald-600 text-white px-3 py-2 rounded-xl text-xs font-medium hover:bg-emerald-700 transition-colors"
-              >
-                <Download className="w-3.5 h-3.5" />
-                Download Excel
-              </a>
-            )}
-            {/* Save all */}
-            {unsavedCount > 0 && (
+        <div className="bg-white rounded-2xl border border-gray-100 shadow-sm p-4 mb-5">
+          <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3">
+            {/* Left: counts */}
+            <div className="flex items-center gap-3 flex-wrap">
+              <h2 className="font-semibold text-gray-900 text-lg">
+                {results.length} businesses found
+              </h2>
+              {totalSaved > 0 && (
+                <span className="bg-green-100 text-green-700 text-xs px-2.5 py-1 rounded-full font-medium">
+                  ✅ {totalSaved} saved to leads
+                </span>
+              )}
+              {query && (
+                <span className="bg-indigo-50 text-indigo-700 text-xs px-2.5 py-1 rounded-full font-medium">
+                  🔍 {query}{location ? ` · ${location}` : ''}
+                </span>
+              )}
+            </div>
+
+            {/* Right: action buttons */}
+            <div className="flex items-center gap-2 flex-wrap">
+
+              {/* ★ GET LEADS — main CTA: export all results to Excel */}
               <button
-                onClick={saveAll}
-                disabled={savingAll}
-                className="flex items-center gap-1.5 bg-indigo-600 text-white px-4 py-2 rounded-xl text-sm font-medium hover:bg-indigo-700 transition-colors disabled:opacity-60"
+                onClick={getLeads}
+                disabled={exporting}
+                className="flex items-center gap-2 bg-emerald-600 text-white px-5 py-2.5 rounded-xl text-sm font-bold hover:bg-emerald-700 transition-colors disabled:opacity-60 shadow-sm"
               >
-                {savingAll
-                  ? <Loader2 className="w-3.5 h-3.5 animate-spin" />
-                  : <Save className="w-3.5 h-3.5" />}
-                {savingAll ? 'Saving…' : `Save All ${unsavedCount} to Spreadsheet`}
+                {exporting
+                  ? <Loader2 className="w-4 h-4 animate-spin" />
+                  : <FileSpreadsheet className="w-4 h-4" />}
+                {exporting ? 'Exporting…' : `Get Leads (${results.length})`}
               </button>
-            )}
-            {allSaved && unsavedCount === 0 && (
-              <span className="flex items-center gap-1 text-green-700 text-sm font-medium">
-                <CheckCircle className="w-4 h-4" /> All saved!
-              </span>
-            )}
+
+              {/* Save all to DB */}
+              {unsavedCount > 0 && (
+                <button
+                  onClick={saveAll}
+                  disabled={savingAll}
+                  className="flex items-center gap-1.5 bg-indigo-600 text-white px-4 py-2.5 rounded-xl text-sm font-medium hover:bg-indigo-700 transition-colors disabled:opacity-60"
+                >
+                  {savingAll
+                    ? <Loader2 className="w-3.5 h-3.5 animate-spin" />
+                    : <Save className="w-3.5 h-3.5" />}
+                  {savingAll ? 'Saving…' : `Save All to Leads`}
+                </button>
+              )}
+
+              {/* Download saved leads from DB */}
+              {totalSaved > 0 && (
+                <a
+                  href="/api/leads/export?format=xlsx"
+                  className="flex items-center gap-1.5 bg-gray-100 text-gray-700 px-3 py-2.5 rounded-xl text-xs font-medium hover:bg-gray-200 transition-colors"
+                >
+                  <Download className="w-3.5 h-3.5" />
+                  Download Saved
+                </a>
+              )}
+
+              {allSaved && unsavedCount === 0 && (
+                <span className="flex items-center gap-1 text-green-700 text-sm font-medium">
+                  <CheckCircle className="w-4 h-4" /> All saved!
+                </span>
+              )}
+            </div>
           </div>
+
+          {/* How-to hint */}
+          <p className="text-xs text-gray-400 mt-3 border-t border-gray-100 pt-3">
+            💡 <strong>Get Leads</strong> downloads all {results.length} businesses as an Excel spreadsheet with full details.
+            &nbsp;· <strong>Save All to Leads</strong> adds them to your leads database for follow-up.
+          </p>
         </div>
       )}
 
-      {/* Results Grid */}
+      {/* ── Results Grid ─────────────────────────────────────────────────────── */}
       {results.length > 0 && (
         <div className="grid md:grid-cols-2 xl:grid-cols-3 gap-4">
           {results.map(place => {
@@ -332,12 +395,14 @@ export default function BusinessSearchPage() {
                         {type}
                       </span>
                     </div>
-                    {state === 'saved' && (
-                      <CheckCircle className="w-5 h-5 text-green-500 shrink-0" />
-                    )}
-                    {place.businessStatus === 'CLOSED_PERMANENTLY' && (
-                      <span className="text-xs bg-red-100 text-red-600 px-2 py-0.5 rounded-full">Closed</span>
-                    )}
+                    <div className="flex flex-col items-end gap-1">
+                      {state === 'saved' && (
+                        <CheckCircle className="w-5 h-5 text-green-500 shrink-0" />
+                      )}
+                      {place.businessStatus === 'CLOSED_PERMANENTLY' && (
+                        <span className="text-xs bg-red-100 text-red-600 px-2 py-0.5 rounded-full">Closed</span>
+                      )}
+                    </div>
                   </div>
 
                   {/* Rating */}
@@ -345,13 +410,11 @@ export default function BusinessSearchPage() {
 
                   {/* Info rows */}
                   <div className="mt-3 space-y-1.5">
-                    {/* Address */}
                     <div className="flex items-start gap-2 text-xs text-gray-600">
                       <MapPin className="w-3.5 h-3.5 text-gray-400 shrink-0 mt-0.5" />
                       <span className={isExpanded ? '' : 'line-clamp-1'}>{place.address}</span>
                     </div>
 
-                    {/* Phone */}
                     {place.phone ? (
                       <div className="flex items-center gap-2 text-xs text-gray-700">
                         <Phone className="w-3.5 h-3.5 text-green-500 shrink-0" />
@@ -366,7 +429,6 @@ export default function BusinessSearchPage() {
                       </div>
                     )}
 
-                    {/* Website */}
                     {place.website ? (
                       <div className="flex items-center gap-2 text-xs">
                         <Globe className="w-3.5 h-3.5 text-indigo-400 shrink-0" />
@@ -387,7 +449,6 @@ export default function BusinessSearchPage() {
                       </div>
                     )}
 
-                    {/* Note about email */}
                     <div className="flex items-center gap-2 text-xs text-gray-400 italic">
                       <span className="w-3.5 h-3.5 shrink-0 text-center">@</span>
                       <span>Email not available via Google (add manually)</span>
@@ -403,7 +464,6 @@ export default function BusinessSearchPage() {
                     {isExpanded ? 'Show less' : 'More details'}
                   </button>
 
-                  {/* Expanded: Maps link + coordinates */}
                   {isExpanded && (
                     <div className="mt-2 pt-2 border-t border-gray-100 space-y-1.5 text-xs text-gray-500">
                       {place.mapsUrl && (
@@ -427,11 +487,14 @@ export default function BusinessSearchPage() {
                         <p className="text-orange-600">⚠️ Status: {place.businessStatus.replace(/_/g, ' ')}</p>
                       )}
                       <div className="flex flex-wrap gap-1 mt-1">
-                        {place.types.filter(t => !['point_of_interest','establishment'].includes(t)).slice(0, 5).map(t => (
-                          <span key={t} className="bg-gray-100 text-gray-500 px-1.5 py-0.5 rounded text-xs">
-                            {t.replace(/_/g, ' ')}
-                          </span>
-                        ))}
+                        {place.types
+                          .filter(t => !['point_of_interest', 'establishment'].includes(t))
+                          .slice(0, 5)
+                          .map(t => (
+                            <span key={t} className="bg-gray-100 text-gray-500 px-1.5 py-0.5 rounded text-xs">
+                              {t.replace(/_/g, ' ')}
+                            </span>
+                          ))}
                       </div>
                     </div>
                   )}
@@ -442,7 +505,7 @@ export default function BusinessSearchPage() {
                   {state === 'saved' ? (
                     <div className="w-full flex items-center justify-center gap-2 bg-green-50 text-green-700 py-2 rounded-xl text-xs font-medium">
                       <CheckCircle className="w-3.5 h-3.5" />
-                      Saved to Spreadsheet
+                      Saved to Leads
                     </div>
                   ) : state === 'error' ? (
                     <button
@@ -471,7 +534,7 @@ export default function BusinessSearchPage() {
         </div>
       )}
 
-      {/* Empty / loading state */}
+      {/* ── Loading / Empty States ─────────────────────────────────────────── */}
       {loading && (
         <div className="text-center py-20">
           <Loader2 className="w-10 h-10 text-indigo-500 animate-spin mx-auto mb-4" />
@@ -482,7 +545,7 @@ export default function BusinessSearchPage() {
 
       {searched && !loading && results.length === 0 && !error && (
         <div className="text-center py-20 text-gray-400">
-          <Building2 className="w-10 h-10 mx-auto mb-3 opacity-30" />
+          <SearchCheck className="w-10 h-10 mx-auto mb-3 opacity-30" />
           <p className="font-medium">No businesses found</p>
           <p className="text-sm mt-1">Try a different search term or location</p>
         </div>
@@ -490,12 +553,16 @@ export default function BusinessSearchPage() {
 
       {!searched && !loading && (
         <div className="text-center py-20 text-gray-300">
-          <Search className="w-12 h-12 mx-auto mb-4" />
+          <SearchCheck className="w-12 h-12 mx-auto mb-4 text-indigo-200" />
           <p className="text-gray-500 font-medium text-lg">Find your next leads</p>
-          <p className="text-sm text-gray-400 mt-2">
-            Search any type of business on Google Maps.<br />
-            Save them directly to your lead spreadsheet with one click.
+          <p className="text-sm text-gray-400 mt-2 max-w-md mx-auto">
+            Search any type of business on Google Maps — <strong>plumbing</strong>, <strong>dentists</strong>, <strong>law firms</strong>…<br />
+            Then click <span className="text-emerald-600 font-semibold">Get Leads</span> to download all results as an Excel spreadsheet with full details.
           </p>
+          <div className="mt-6 flex items-center justify-center gap-2 text-xs text-gray-400">
+            <FileSpreadsheet className="w-4 h-4 text-emerald-500" />
+            Exports: Business Name · Phone · Website · Address · Rating · Maps Link
+          </div>
         </div>
       )}
     </div>
