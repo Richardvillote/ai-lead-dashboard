@@ -1,7 +1,7 @@
 'use client'
 
 import { useEffect, useState } from 'react'
-import { Search, Trash2, Phone, Mail, Pencil, Download, PhoneCall, PhoneOff, CheckCircle } from 'lucide-react'
+import { Search, Trash2, Phone, Mail, Pencil, Download, PhoneCall, PhoneOff, CheckCircle, UserPlus } from 'lucide-react'
 import {
   STATUS_COLORS,
   STATUS_LABELS,
@@ -63,6 +63,27 @@ export default function LeadsPage() {
     duration: 30,
     notes: '',
   })
+
+  // ── Add Lead Manually ──────────────────────────────────────────────────────
+  const [showAddLead, setShowAddLead] = useState(false)
+  const [addForm, setAddForm] = useState({
+    name: '', email: '', phone: '', service: '', message: '', notes: '',
+  })
+  const [addSaving, setAddSaving] = useState(false)
+
+  const saveNewLead = async () => {
+    if (!addForm.name || !addForm.email) return
+    setAddSaving(true)
+    await fetch('/api/leads', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify(addForm),
+    })
+    setAddSaving(false)
+    setShowAddLead(false)
+    setAddForm({ name: '', email: '', phone: '', service: '', message: '', notes: '' })
+    load()
+  }
 
   // Edit lead
   const [editLead, setEditLead] = useState<Lead | null>(null)
@@ -208,16 +229,26 @@ export default function LeadsPage() {
             <h1 className="text-2xl font-bold text-gray-900">Leads</h1>
             <p className="text-sm text-gray-500">{leads.length} total leads</p>
           </div>
-          <button
-            onClick={exportCSV}
-            className="flex items-center gap-2 bg-white border border-gray-200 text-gray-700 px-4 py-2 rounded-xl text-sm font-medium hover:border-indigo-300 hover:text-indigo-700 transition-colors shadow-sm"
-          >
-            <Download className="w-4 h-4" />
-            Export CSV
-          </button>
+          <div className="flex items-center gap-2">
+            {/* ── Add Lead Button ── */}
+            <button
+              onClick={() => setShowAddLead(true)}
+              className="flex items-center gap-2 bg-indigo-600 text-white px-4 py-2 rounded-xl text-sm font-medium hover:bg-indigo-700 transition-colors shadow-sm"
+            >
+              <UserPlus className="w-4 h-4" />
+              Add Lead
+            </button>
+            <button
+              onClick={exportCSV}
+              className="flex items-center gap-2 bg-white border border-gray-200 text-gray-700 px-4 py-2 rounded-xl text-sm font-medium hover:border-indigo-300 hover:text-indigo-700 transition-colors shadow-sm"
+            >
+              <Download className="w-4 h-4" />
+              Export CSV
+            </button>
+          </div>
         </div>
 
-        {/* Filters */}
+        {/* Filters & Search */}
         <div className="flex gap-3 mb-4">
           <div className="relative flex-1">
             <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-gray-400" />
@@ -326,7 +357,9 @@ export default function LeadsPage() {
               {filtered.length === 0 && (
                 <tr>
                   <td colSpan={7} className="text-center py-12 text-gray-400">
-                    No leads found
+                    {leads.length === 0
+                      ? 'No leads yet — click "Add Lead" to add your first one!'
+                      : 'No leads match your search'}
                   </td>
                 </tr>
               )}
@@ -657,6 +690,108 @@ export default function LeadsPage() {
               </button>
               <button
                 onClick={() => setEditLead(null)}
+                className="flex-1 bg-gray-100 text-gray-700 py-2.5 rounded-xl text-sm font-medium hover:bg-gray-200 transition-colors"
+              >
+                Cancel
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* ── Add Lead Modal ── */}
+      {showAddLead && (
+        <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-50">
+          <div className="bg-white rounded-2xl p-6 w-[480px] shadow-2xl">
+            <h3 className="font-bold text-gray-900 mb-1">Add New Lead</h3>
+            <p className="text-sm text-gray-500 mb-5">
+              Manually add a lead to your pipeline
+            </p>
+            <div className="grid grid-cols-2 gap-3">
+              <div>
+                <label className="block text-xs font-medium text-gray-600 mb-1">
+                  Full Name <span className="text-red-400">*</span>
+                </label>
+                <input
+                  value={addForm.name}
+                  onChange={e => setAddForm({ ...addForm, name: e.target.value })}
+                  placeholder="John Smith"
+                  className="w-full border border-gray-200 rounded-xl px-3 py-2 text-sm outline-none focus:ring-2 focus:ring-indigo-500"
+                />
+              </div>
+              <div>
+                <label className="block text-xs font-medium text-gray-600 mb-1">
+                  Email <span className="text-red-400">*</span>
+                </label>
+                <input
+                  type="email"
+                  value={addForm.email}
+                  onChange={e => setAddForm({ ...addForm, email: e.target.value })}
+                  placeholder="john@example.com"
+                  className="w-full border border-gray-200 rounded-xl px-3 py-2 text-sm outline-none focus:ring-2 focus:ring-indigo-500"
+                />
+              </div>
+              <div>
+                <label className="block text-xs font-medium text-gray-600 mb-1">
+                  Phone
+                </label>
+                <input
+                  value={addForm.phone}
+                  onChange={e => setAddForm({ ...addForm, phone: e.target.value })}
+                  placeholder="+1 (555) 000-0000"
+                  className="w-full border border-gray-200 rounded-xl px-3 py-2 text-sm outline-none focus:ring-2 focus:ring-indigo-500"
+                />
+              </div>
+              <div>
+                <label className="block text-xs font-medium text-gray-600 mb-1">
+                  Service Interested In
+                </label>
+                <select
+                  value={addForm.service}
+                  onChange={e => setAddForm({ ...addForm, service: e.target.value })}
+                  className="w-full border border-gray-200 rounded-xl px-3 py-2 text-sm outline-none focus:ring-2 focus:ring-indigo-500"
+                >
+                  <option value="">None</option>
+                  {SERVICES.map(s => (
+                    <option key={s} value={s}>{s}</option>
+                  ))}
+                </select>
+              </div>
+              <div className="col-span-2">
+                <label className="block text-xs font-medium text-gray-600 mb-1">
+                  Message / Details
+                </label>
+                <textarea
+                  value={addForm.message}
+                  onChange={e => setAddForm({ ...addForm, message: e.target.value })}
+                  placeholder="What are they looking for?"
+                  rows={2}
+                  className="w-full border border-gray-200 rounded-xl px-3 py-2 text-sm outline-none focus:ring-2 focus:ring-indigo-500 resize-none"
+                />
+              </div>
+              <div className="col-span-2">
+                <label className="block text-xs font-medium text-gray-600 mb-1">
+                  Internal Notes
+                </label>
+                <textarea
+                  value={addForm.notes}
+                  onChange={e => setAddForm({ ...addForm, notes: e.target.value })}
+                  placeholder="Private notes about this lead…"
+                  rows={2}
+                  className="w-full border border-gray-200 rounded-xl px-3 py-2 text-sm outline-none focus:ring-2 focus:ring-indigo-500 resize-none"
+                />
+              </div>
+            </div>
+            <div className="flex gap-3 mt-5">
+              <button
+                onClick={saveNewLead}
+                disabled={addSaving || !addForm.name || !addForm.email}
+                className="flex-1 bg-indigo-600 text-white py-2.5 rounded-xl text-sm font-semibold hover:bg-indigo-700 disabled:opacity-60 transition-colors"
+              >
+                {addSaving ? 'Adding…' : 'Add Lead'}
+              </button>
+              <button
+                onClick={() => { setShowAddLead(false); setAddForm({ name: '', email: '', phone: '', service: '', message: '', notes: '' }) }}
                 className="flex-1 bg-gray-100 text-gray-700 py-2.5 rounded-xl text-sm font-medium hover:bg-gray-200 transition-colors"
               >
                 Cancel
