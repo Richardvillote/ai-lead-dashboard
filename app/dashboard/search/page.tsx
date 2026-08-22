@@ -7,6 +7,7 @@ import {
   Download, Save, X, ChevronDown, ChevronUp, FileSpreadsheet,
   Navigation, Zap, DatabaseZap,
 } from 'lucide-react'
+import MapPicker from '@/components/MapPicker'
 
 interface PlaceResult {
   placeId: string
@@ -441,7 +442,7 @@ export default function LeadSearchPage() {
           </div>
 
           {/* Location input with GPS button */}
-          <div className="sm:w-64 relative">
+          <div className="sm:w-56 relative">
             <button
               type="button"
               onClick={() => setShowLocTip(v => !v)}
@@ -487,6 +488,14 @@ export default function LeadSearchPage() {
               </div>
             )}
           </div>
+
+          {/* 🗺️ Map picker — click to open world map and pick a location */}
+          <MapPicker
+            onSelect={(city) => {
+              setLocation(city)
+              setShowLocTip(false)
+            }}
+          />
 
           <button
             onClick={() => { setShowLocTip(false); doSearch() }}
@@ -598,7 +607,7 @@ export default function LeadSearchPage() {
               <p className="text-sm font-semibold text-indigo-900">
                 Downloaded! ✅ &nbsp;Add these {results.filter(r => !savedIds.has(r.placeId)).length} businesses to your Leads database?
               </p>
-              <p className="text-xs text-indigo-600 mt-0.5">One click — they\'ll appear in your Leads list for follow-up.</p>
+              <p className="text-xs text-indigo-600 mt-0.5">One click — they&apos;ll appear in your Leads list for follow-up.</p>
             </div>
           </div>
           <div className="flex items-center gap-2 shrink-0">
@@ -800,7 +809,7 @@ export default function LeadSearchPage() {
           </p>
           <div className="mt-5 inline-flex items-center gap-2 bg-indigo-50 text-indigo-600 text-xs px-4 py-2 rounded-full">
             <Navigation className="w-3.5 h-3.5" />
-            Tip: Click the 📍 icon in the location field to auto-detect your area
+            Tip: Click <strong className="mx-1">🗺️ Map</strong> to pick your target area on a world map
           </div>
         </div>
       )}
