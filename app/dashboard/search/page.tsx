@@ -786,7 +786,13 @@ export default function LeadSearchPage() {
           <p className="text-gray-500 font-medium">
             Searching {activeProvider ? PROVIDER_META[activeProvider]?.label : ''}…
           </p>
-          <p className="text-sm text-gray-400 mt-1">Fetching business details for up to 15 results</p>
+          <p className="text-sm text-gray-400 mt-1">
+            {activeProvider === 'google'
+              ? 'Fetching all pages from Google — up to 60 results…'
+              : activeProvider === 'yelp'
+              ? 'Fetching up to 50 results from Yelp…'
+              : 'Scanning the area via OpenStreetMap — 100+ results possible…'}
+          </p>
         </div>
       )}
 
