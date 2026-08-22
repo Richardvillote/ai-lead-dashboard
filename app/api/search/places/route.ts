@@ -376,7 +376,11 @@ out center 100;
 
   const res = await fetch('https://overpass-api.de/api/interpreter', {
     method:  'POST',
-    headers: { 'Content-Type': 'application/x-www-form-urlencoded' },
+    headers: {
+      'Content-Type': 'application/x-www-form-urlencoded',
+      'Accept':       'application/json',
+      'User-Agent':   'LeadDashboard/1.0 (business-lead-finder)',
+    },
     body:    `data=${encodeURIComponent(query)}`,
     signal:  AbortSignal.timeout(30000),
   })

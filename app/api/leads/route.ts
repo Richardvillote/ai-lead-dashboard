@@ -20,14 +20,23 @@ export async function GET() {
 export async function POST(req: NextRequest) {
   try {
     const body = await req.json()
-    const { name, email, phone, service, message } = body
+    const { name, email, phone, service, message, source, notes } = body
 
-    if (!name || !email) {
-      return NextResponse.json({ error: 'Name and email are required' }, { status: 400 })
+    if (!name) {
+      return NextResponse.json({ error: 'Name is required' }, { status: 400 })
     }
 
     const lead = await prisma.lead.create({
-      data: { name, email, phone, service, message, status: 'NEW' },
+      data: {
+        name,
+        email:   email   || '',
+        phone:   phone   || null,
+        service: service || null,
+        message: message || null,
+        source:  source  || 'website',
+        notes:   notes   || null,
+        status: 'NEW',
+      },
     })
 
     // Send email notification (non-blocking)
