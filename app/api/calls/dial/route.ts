@@ -1,5 +1,5 @@
 import { NextRequest, NextResponse } from 'next/server'
-import { prisma } from '@/lib/db'
+import { supabase } from '@/lib/supabase'
 import { twilioClient, TWILIO_FROM, ADMIN_PHONE } from '@/lib/twilio'
 
 export async function POST(req: NextRequest) {
@@ -10,8 +10,13 @@ export async function POST(req: NextRequest) {
       return NextResponse.json({ error: 'leadId is required' }, { status: 400 })
     }
 
-    const lead = await prisma.lead.findUnique({ where: { id: leadId } })
-    if (!lead) {
+    const { data: lead, error: leadError } = await supabase
+      .from('Lead')
+      .select('*')
+      .eq('id', leadId)
+      .single()
+
+    if (leadError || !lead) {
       return NextResponse.json({ error: 'Lead not found' }, { status: 404 })
     }
 
@@ -48,24 +53,30 @@ export async function POST(req: NextRequest) {
     })
 
     // Log the call in DB
-    const callLog = await prisma.callLog.create({
-      data: {
+    const { data: callLog, error: callError } = await supabase
+      .from('CallLog')
+      .insert({
         leadId,
         outcome: 'INITIATED',
         twilioSid: call.sid,
         notes: `Outbound call initiated via dashboard`,
-      },
-    })
+      })
+      .select()
+      .single()
+
+    if (callError) {
+      console.error('Failed to log call:', callError)
+    }
 
     // Auto-update lead status to CONTACTED if still NEW
     if (lead.status === 'NEW') {
-      await prisma.lead.update({
-        where: { id: leadId },
-        data: { status: 'CONTACTED' },
-      })
+      await supabase
+        .from('Lead')
+        .update({ status: 'CONTACTED' })
+        .eq('id', leadId)
     }
 
-    return NextResponse.json({ success: true, callSid: call.sid, callLogId: callLog.id })
+    return NextResponse.json({ success: true, callSid: call.sid, callLogId: callLog?.id })
   } catch (err: unknown) {
     console.error('Dial error:', err)
     const message = err instanceof Error ? err.message : 'Failed to initiate call'

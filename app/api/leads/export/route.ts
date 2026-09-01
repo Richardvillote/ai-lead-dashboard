@@ -1,5 +1,5 @@
 import { NextRequest, NextResponse } from 'next/server'
-import { prisma } from '@/lib/db'
+import { supabase } from '@/lib/supabase'
 import * as XLSX from 'xlsx'
 
 export async function GET(req: NextRequest) {
@@ -7,26 +7,33 @@ export async function GET(req: NextRequest) {
     const { searchParams } = new URL(req.url)
     const format = searchParams.get('format') || 'csv' // 'csv' | 'xlsx'
 
-    const leads = await prisma.lead.findMany({
-      orderBy: { createdAt: 'desc' },
-      include: {
-        _count: { select: { appointments: true, calls: true } },
-      },
-    })
+    // Fetch leads with counts via separate count queries
+    const { data: leadsRaw, error } = await supabase
+      .from('Lead')
+      .select('*, Appointment(*), CallLog(*)')
+      .order('createdAt', { ascending: false })
 
-    const rows = leads.map(l => ({
-      Name: l.name,
-      Email: l.email,
-      Phone: l.phone || '',
-      Service: l.service || '',
-      Status: l.status,
-      Source: l.source || '',
-      Message: (l.message || '').replace(/\r?\n/g, ' '),
-      Notes: (l.notes || '').replace(/\r?\n/g, ' '),
-      Appointments: l._count.appointments,
-      Calls: l._count.calls,
-      'Created At': new Date(l.createdAt).toLocaleString(),
-    }))
+    if (error) return NextResponse.json({ error: error.message }, { status: 500 })
+
+    const leads = leadsRaw ?? []
+
+    const rows = leads.map((l: Record<string, unknown>) => {
+      const appointments = Array.isArray(l.Appointment) ? l.Appointment : []
+      const calls = Array.isArray(l.CallLog) ? l.CallLog : []
+      return {
+        Name: l.name,
+        Email: l.email,
+        Phone: l.phone || '',
+        Service: l.service || '',
+        Status: l.status,
+        Source: l.source || '',
+        Message: (String(l.message || '')).replace(/\r?\n/g, ' '),
+        Notes: (String(l.notes || '')).replace(/\r?\n/g, ' '),
+        Appointments: appointments.length,
+        Calls: calls.length,
+        'Created At': new Date(String(l.createdAt)).toLocaleString(),
+      }
+    })
 
     if (format === 'xlsx') {
       const ws = XLSX.utils.json_to_sheet(rows)

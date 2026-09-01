@@ -1,14 +1,6 @@
-import nodemailer from 'nodemailer'
+import { Resend } from 'resend'
 
-const transporter = nodemailer.createTransport({
-  host: process.env.EMAIL_HOST,
-  port: Number(process.env.EMAIL_PORT),
-  secure: false,
-  auth: {
-    user: process.env.EMAIL_USER,
-    pass: process.env.EMAIL_PASS,
-  },
-})
+const resend = new Resend(process.env.RESEND_API_KEY)
 
 export async function sendLeadNotification(lead: {
   name: string
@@ -18,9 +10,13 @@ export async function sendLeadNotification(lead: {
   message?: string | null
 }) {
   try {
-    await transporter.sendMail({
-      from: `"Lead Dashboard" <${process.env.EMAIL_USER}>`,
-      to: process.env.EMAIL_TO,
+    const fromEmail = process.env.EMAIL_FROM || 'onboarding@resend.dev'
+    const toEmail = process.env.EMAIL_TO || ''
+    if (!toEmail) return
+
+    await resend.emails.send({
+      from: `Lead Dashboard <${fromEmail}>`,
+      to: toEmail,
       subject: `New Lead: ${lead.name}`,
       html: `
         <h2>New Lead Received!</h2>

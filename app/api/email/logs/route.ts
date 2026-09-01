@@ -1,13 +1,20 @@
 import { NextResponse } from 'next/server'
-import { prisma } from '@/lib/db'
+import { supabase } from '@/lib/supabase'
 
 export async function GET() {
-  const logs = await prisma.emailLog.findMany({
-    orderBy: { sentAt: 'desc' },
-    take: 100,
-    include: {
-      lead: { select: { name: true } },
-    },
-  })
-  return NextResponse.json(logs)
+  const { data: logs, error } = await supabase
+    .from('EmailLog')
+    .select('*, Lead(name)')
+    .order('sentAt', { ascending: false })
+    .limit(100)
+
+  if (error) return NextResponse.json({ error: error.message }, { status: 500 })
+
+  // Shape to match Prisma include format (lead instead of Lead)
+  const shaped = (logs ?? []).map((log: Record<string, unknown>) => ({
+    ...log,
+    lead: log.Lead ?? null,
+  }))
+
+  return NextResponse.json(shaped)
 }

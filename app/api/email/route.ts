@@ -1,6 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server'
-import { prisma } from '@/lib/db'
-import { getTransporter } from '@/lib/mailer'
+import { supabase } from '@/lib/supabase'
+import { getResend } from '@/lib/mailer'
 
 export async function POST(req: NextRequest) {
   try {
@@ -18,34 +18,36 @@ export async function POST(req: NextRequest) {
     let leads: { id: string; name: string; email: string }[] = []
 
     if (sendToAll) {
-      const where = statusFilter && statusFilter !== 'ALL'
-        ? { status: statusFilter }
-        : {}
-      leads = await prisma.lead.findMany({
-        where,
-        select: { id: true, name: true, email: true },
-      })
+      let query = supabase.from('Lead').select('id, name, email')
+      if (statusFilter && statusFilter !== 'ALL') {
+        query = query.eq('status', statusFilter)
+      }
+      const { data, error } = await query
+      if (error) return NextResponse.json({ error: error.message }, { status: 500 })
+      leads = data ?? []
     } else if (recipientIds && recipientIds.length > 0) {
-      leads = await prisma.lead.findMany({
-        where: { id: { in: recipientIds } },
-        select: { id: true, name: true, email: true },
-      })
+      const { data, error } = await supabase
+        .from('Lead')
+        .select('id, name, email')
+        .in('id', recipientIds)
+      if (error) return NextResponse.json({ error: error.message }, { status: 500 })
+      leads = data ?? []
     }
 
     if (leads.length === 0) {
       return NextResponse.json({ error: 'No recipients found' }, { status: 400 })
     }
 
-    const transporter = getTransporter()
+    const resend = getResend()
     const fromName = process.env.NEXT_PUBLIC_BUSINESS_NAME || 'Your Business'
-    const fromEmail = process.env.EMAIL_USER || ''
+    const fromEmail = process.env.EMAIL_FROM || 'onboarding@resend.dev'
 
     const results = await Promise.allSettled(
       leads.map(async (lead) => {
         // Personalise body — replace {{name}} placeholder
         const personalised = body.replace(/\{\{name\}\}/g, lead.name)
 
-        await transporter.sendMail({
+        await resend.emails.send({
           from: `"${fromName}" <${fromEmail}>`,
           to: lead.email,
           subject,
@@ -53,16 +55,14 @@ export async function POST(req: NextRequest) {
           text: personalised,
         })
 
-        await prisma.emailLog.create({
-          data: {
-            leadId: lead.id,
-            subject,
-            body: personalised,
-            recipientEmail: lead.email,
-            recipientName: lead.name,
-            status: 'SENT',
-            campaign: campaign || null,
-          },
+        await supabase.from('EmailLog').insert({
+          leadId: lead.id,
+          subject,
+          body: personalised,
+          recipientEmail: lead.email,
+          recipientName: lead.name,
+          status: 'SENT',
+          campaign: campaign || null,
         })
       })
     )

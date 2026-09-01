@@ -1,5 +1,5 @@
 import { NextResponse } from 'next/server'
-import { prisma } from '@/lib/db'
+import { supabase } from '@/lib/supabase'
 
 export async function GET() {
   try {
@@ -7,20 +7,28 @@ export async function GET() {
     twoWeeksAgo.setDate(twoWeeksAgo.getDate() - 13)
     twoWeeksAgo.setHours(0, 0, 0, 0)
 
-    const [total, byStatus, recent, recentLeads] = await Promise.all([
-      prisma.lead.count(),
-      prisma.lead.groupBy({ by: ['status'], _count: true }),
-      prisma.lead.count({
-        where: { createdAt: { gte: new Date(Date.now() - 30 * 24 * 60 * 60 * 1000) } },
-      }),
-      prisma.lead.findMany({
-        where: { createdAt: { gte: twoWeeksAgo } },
-        select: { createdAt: true },
-      }),
-    ])
+    const thirtyDaysAgo = new Date(Date.now() - 30 * 24 * 60 * 60 * 1000)
 
+    // Fetch all leads (needed for groupBy simulation and daily counts)
+    const { data: allLeads, error: allError } = await supabase
+      .from('Lead')
+      .select('id, status, createdAt')
+
+    if (allError) return NextResponse.json({ error: allError.message }, { status: 500 })
+
+    const leads = allLeads ?? []
+
+    const total = leads.length
+
+    // Count by status manually
     const statusMap: Record<string, number> = {}
-    byStatus.forEach((s) => { statusMap[s.status] = s._count })
+    for (const l of leads) {
+      const s = String(l.status)
+      statusMap[s] = (statusMap[s] || 0) + 1
+    }
+
+    // Count recent (last 30 days)
+    const recent = leads.filter(l => new Date(l.createdAt) >= thirtyDaysAgo).length
 
     const closed = statusMap['CLOSED'] || 0
     const conversionRate = total > 0 ? Math.round((closed / total) * 100) : 0
@@ -33,10 +41,12 @@ export async function GET() {
       const key = d.toISOString().split('T')[0]
       dailyCounts[key] = 0
     }
-    recentLeads.forEach(l => {
-      const key = new Date(l.createdAt).toISOString().split('T')[0]
-      if (key in dailyCounts) dailyCounts[key]++
-    })
+    for (const l of leads) {
+      if (new Date(l.createdAt) >= twoWeeksAgo) {
+        const key = new Date(l.createdAt).toISOString().split('T')[0]
+        if (key in dailyCounts) dailyCounts[key]++
+      }
+    }
     const dailyLeads = Object.entries(dailyCounts).map(([date, count]) => ({ date, count }))
 
     return NextResponse.json({
