@@ -3,7 +3,7 @@ generator client {
 }
 
 datasource db {
-  provider = "sqlite"
+  provider = "postgresql"
 }
 
 model Lead {
@@ -51,15 +51,15 @@ model CallLog {
 }
 
 model EmailLog {
-  id         String   @id @default(cuid())
-  leadId     String?
-  lead       Lead?    @relation(fields: [leadId], references: [id], onDelete: SetNull)
-  subject    String
-  body       String
+  id             String   @id @default(cuid())
+  leadId         String?
+  lead           Lead?    @relation(fields: [leadId], references: [id], onDelete: SetNull)
+  subject        String
+  body           String
   recipientEmail String
   recipientName  String
-  status     String   @default("SENT")
-  campaign   String?
-  sentAt     DateTime @default(now())
-  createdAt  DateTime @default(now())
+  status         String   @default("SENT")
+  campaign       String?
+  sentAt         DateTime @default(now())
+  createdAt      DateTime @default(now())
 }
