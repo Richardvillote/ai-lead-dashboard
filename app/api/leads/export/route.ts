@@ -2,12 +2,13 @@ import { NextRequest, NextResponse } from 'next/server'
 import { supabase } from '@/lib/supabase'
 import * as XLSX from 'xlsx'
 
+export const runtime = 'edge'
+
 export async function GET(req: NextRequest) {
   try {
     const { searchParams } = new URL(req.url)
-    const format = searchParams.get('format') || 'csv' // 'csv' | 'xlsx'
+    const format = searchParams.get('format') || 'csv'
 
-    // Fetch leads with counts via separate count queries
     const { data: leadsRaw, error } = await supabase
       .from('Lead')
       .select('*, Appointment(*), CallLog(*)')
@@ -37,8 +38,6 @@ export async function GET(req: NextRequest) {
 
     if (format === 'xlsx') {
       const ws = XLSX.utils.json_to_sheet(rows)
-
-      // Auto-size columns
       const colWidths = Object.keys(rows[0] || {}).map(key => ({
         wch: Math.max(key.length, ...rows.map(r => String(r[key as keyof typeof r] ?? '').length)) + 2,
       }))
@@ -58,7 +57,6 @@ export async function GET(req: NextRequest) {
       })
     }
 
-    // Default: CSV
     const headers = Object.keys(rows[0] || {})
     const escape = (v: unknown) => `"${String(v).replace(/"/g, '""')}"`
     const csv = [headers, ...rows.map(r => headers.map(h => escape(r[h as keyof typeof r])))].map(r => r.join(',')).join('\r\n')

@@ -2,6 +2,8 @@ import { NextRequest, NextResponse } from 'next/server'
 import { supabase } from '@/lib/supabase'
 import { getResend } from '@/lib/mailer'
 
+export const runtime = 'edge'
+
 export async function POST(req: NextRequest) {
   try {
     const { subject, body, recipientIds, sendToAll, statusFilter, campaign } =
@@ -44,7 +46,6 @@ export async function POST(req: NextRequest) {
 
     const results = await Promise.allSettled(
       leads.map(async (lead) => {
-        // Personalise body — replace {{name}} placeholder
         const personalised = body.replace(/\{\{name\}\}/g, lead.name)
 
         await resend.emails.send({
@@ -92,20 +93,17 @@ function buildHtml(businessName: string, subject: string, body: string) {
     <tr><td>
       <table width="600" align="center" cellpadding="0" cellspacing="0"
         style="background:#ffffff;border-radius:12px;overflow:hidden;box-shadow:0 2px 8px rgba(0,0,0,0.08);">
-        <!-- Header -->
         <tr>
           <td style="background:#4f46e5;padding:28px 40px;">
             <h1 style="margin:0;color:#ffffff;font-size:20px;font-weight:700;">${businessName}</h1>
           </td>
         </tr>
-        <!-- Body -->
         <tr>
           <td style="padding:36px 40px;">
             <h2 style="margin:0 0 20px;color:#111827;font-size:18px;">${subject}</h2>
             <div style="color:#374151;font-size:15px;line-height:1.7;">${bodyHtml}</div>
           </td>
         </tr>
-        <!-- Footer -->
         <tr>
           <td style="padding:20px 40px;border-top:1px solid #e5e7eb;">
             <p style="margin:0;color:#9ca3af;font-size:12px;">

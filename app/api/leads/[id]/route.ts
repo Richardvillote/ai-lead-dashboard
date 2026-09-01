@@ -1,6 +1,8 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { supabase } from '@/lib/supabase'
 
+export const runtime = 'edge'
+
 export async function GET(_: NextRequest, { params }: { params: Promise<{ id: string }> }) {
   try {
     const { id } = await params

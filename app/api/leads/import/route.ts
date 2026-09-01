@@ -2,33 +2,20 @@ import { NextRequest, NextResponse } from 'next/server'
 import { supabase } from '@/lib/supabase'
 import * as XLSX from 'xlsx'
 
-// ── Column header → internal field mapping (case-insensitive) ──────────────
-// Covers both manually-created spreadsheets AND the "Get Leads" search export.
+export const runtime = 'edge'
+
 const FIELD_MAP: Record<string, string> = {
-  // Name / Business Name
   name: 'name', fullname: 'name', 'full name': 'name', contact: 'name',
   'business name': 'name', business: 'name', company: 'name', 'company name': 'name',
-
-  // Email
   email: 'email', 'email address': 'email', 'e-mail': 'email',
-
-  // Phone
   phone: 'phone', 'phone number': 'phone', mobile: 'phone',
   tel: 'phone', telephone: 'phone', 'contact number': 'phone',
-
-  // Service / Type
   service: 'service', 'service interested': 'service', 'interested in': 'service',
   'business type': 'service', type: 'service', category: 'service', industry: 'service',
-
-  // Message / Address
   message: 'message', address: 'message', location: 'message',
-
-  // Notes / Website / Maps URL
   notes: 'notes', note: 'notes', website: 'notes', url: 'notes',
   'website url': 'notes', 'maps url': 'notes', 'google maps url': 'notes',
   'maps link': 'notes', link: 'notes',
-
-  // Status / Source
   status: 'status',
   source: 'source',
 }
@@ -70,7 +57,6 @@ export async function POST(req: NextRequest) {
     const errors: string[] = []
 
     for (const [i, raw] of rawRows.entries()) {
-      // ── Normalise column keys ────────────────────────────────────────────
       const row: Record<string, string> = {}
       for (const [k, v] of Object.entries(raw)) {
         const mapped = mapKey(k)
@@ -84,44 +70,27 @@ export async function POST(req: NextRequest) {
         continue
       }
 
-      // ── Deduplication ───────────────────────────────────────────────────
-      // Check by email (if provided) OR by name+phone combination
       let duplicate = false
 
       if (row.email) {
         const { data: byEmail } = await supabase
-          .from('Lead')
-          .select('id')
-          .eq('email', row.email)
-          .maybeSingle()
+          .from('Lead').select('id').eq('email', row.email).maybeSingle()
         if (byEmail) duplicate = true
       } else if (row.phone) {
         const { data: byPhone } = await supabase
-          .from('Lead')
-          .select('id')
-          .eq('phone', row.phone)
-          .eq('name', name)
-          .maybeSingle()
+          .from('Lead').select('id').eq('phone', row.phone).eq('name', name).maybeSingle()
         if (byPhone) duplicate = true
       } else {
         const { data: byName } = await supabase
-          .from('Lead')
-          .select('id')
-          .eq('name', name)
-          .maybeSingle()
+          .from('Lead').select('id').eq('name', name).maybeSingle()
         if (byName) duplicate = true
       }
 
-      if (duplicate) {
-        skipped++
-        continue
-      }
+      if (duplicate) { skipped++; continue }
 
-      // ── Status normalisation ────────────────────────────────────────────
       const rawStatus = (row.status ?? '').toUpperCase()
       const status    = VALID_STATUSES.has(rawStatus) ? rawStatus : 'NEW'
 
-      // ── Create lead ─────────────────────────────────────────────────────
       const { error } = await supabase.from('Lead').insert({
         name,
         email:   row.email   || '',
@@ -142,14 +111,11 @@ export async function POST(req: NextRequest) {
     }
 
     return NextResponse.json({
-      success:  true,
-      imported,
-      skipped,
-      total:    rawRows.length,
-      errors:   errors.slice(0, 10),
+      success: true, imported, skipped,
+      total:   rawRows.length,
+      errors:  errors.slice(0, 10),
     })
   } catch (err: unknown) {
-    console.error('Import error:', err)
     const message = err instanceof Error ? err.message : 'Import failed'
     return NextResponse.json({ error: message }, { status: 500 })
   }

@@ -2,6 +2,8 @@ import { NextRequest, NextResponse } from 'next/server'
 import { supabase } from '@/lib/supabase'
 import { twilioClient, TWILIO_FROM, ADMIN_PHONE } from '@/lib/twilio'
 
+export const runtime = 'edge'
+
 export async function POST(req: NextRequest) {
   try {
     const { leadId } = await req.json()

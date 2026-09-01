@@ -1,6 +1,8 @@
 import { NextRequest, NextResponse } from 'next/server'
 import * as XLSX from 'xlsx'
 
+export const runtime = 'edge'
+
 interface PlaceResult {
   placeId: string
   name: string
@@ -60,9 +62,7 @@ export async function POST(req: NextRequest) {
       'Website': p.website || 'N/A',
       'Rating': p.rating ? `${p.rating}/5` : 'N/A',
       'Total Reviews': p.totalRatings ?? 'N/A',
-      'Business Status': p.businessStatus
-        ? p.businessStatus.replace(/_/g, ' ')
-        : 'N/A',
+      'Business Status': p.businessStatus ? p.businessStatus.replace(/_/g, ' ') : 'N/A',
       'Google Maps URL': p.mapsUrl || 'N/A',
       'Latitude': p.lat ?? 'N/A',
       'Longitude': p.lng ?? 'N/A',
@@ -70,13 +70,11 @@ export async function POST(req: NextRequest) {
 
     const ws = XLSX.utils.json_to_sheet(rows)
 
-    // Auto-size columns
     const colWidths = Object.keys(rows[0] || {}).map(key => ({
       wch: Math.max(key.length + 2, ...rows.map(r => String(r[key as keyof typeof r] ?? '').length)) + 2,
     }))
     ws['!cols'] = colWidths
 
-    // Style header row bold (XLSX supports basic styles)
     const range = XLSX.utils.decode_range(ws['!ref'] || 'A1')
     for (let C = range.s.c; C <= range.e.c; C++) {
       const cellAddr = XLSX.utils.encode_cell({ r: 0, c: C })
