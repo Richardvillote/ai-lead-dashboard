@@ -1,17 +1,24 @@
 import { NextRequest, NextResponse } from 'next/server'
-import { prisma } from '@/lib/db'
+import { supabase } from '@/lib/supabase'
 import { sendLeadNotification } from '@/lib/email'
 
 export async function GET() {
   try {
-    const leads = await prisma.lead.findMany({
-      orderBy: { createdAt: 'desc' },
-      include: {
-        appointments: { orderBy: { scheduledAt: 'asc' } },
-        calls: { orderBy: { calledAt: 'desc' } },
-      },
-    })
-    return NextResponse.json(leads)
+    const { data: leads, error } = await supabase
+      .from('Lead')
+      .select('*, Appointment(*), CallLog(*)')
+      .order('createdAt', { ascending: false })
+
+    if (error) return NextResponse.json({ error: error.message }, { status: 500 })
+
+    // Rename to match Prisma field names for frontend compatibility
+    const shaped = (leads ?? []).map((l: Record<string, unknown>) => ({
+      ...l,
+      appointments: l.Appointment ?? [],
+      calls: l.CallLog ?? [],
+    }))
+
+    return NextResponse.json(shaped)
   } catch (error) {
     return NextResponse.json({ error: 'Failed to fetch leads' }, { status: 500 })
   }
@@ -26,8 +33,9 @@ export async function POST(req: NextRequest) {
       return NextResponse.json({ error: 'Name is required' }, { status: 400 })
     }
 
-    const lead = await prisma.lead.create({
-      data: {
+    const { data: lead, error } = await supabase
+      .from('Lead')
+      .insert({
         name,
         email:   email   || '',
         phone:   phone   || null,
@@ -36,8 +44,11 @@ export async function POST(req: NextRequest) {
         source:  source  || 'website',
         notes:   notes   || null,
         status: 'NEW',
-      },
-    })
+      })
+      .select()
+      .single()
+
+    if (error) return NextResponse.json({ error: error.message }, { status: 500 })
 
     // Send email notification (non-blocking)
     sendLeadNotification(lead)

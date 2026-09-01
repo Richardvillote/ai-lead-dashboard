@@ -1,13 +1,22 @@
 import { NextRequest, NextResponse } from 'next/server'
-import { prisma } from '@/lib/db'
+import { supabase } from '@/lib/supabase'
 
 export async function GET() {
   try {
-    const appointments = await prisma.appointment.findMany({
-      orderBy: { scheduledAt: 'asc' },
-      include: { lead: { select: { name: true, email: true, phone: true } } },
-    })
-    return NextResponse.json(appointments)
+    const { data: appointments, error } = await supabase
+      .from('Appointment')
+      .select('*, Lead(name, email, phone)')
+      .order('scheduledAt', { ascending: true })
+
+    if (error) return NextResponse.json({ error: error.message }, { status: 500 })
+
+    // Shape to match Prisma include format (lead instead of Lead)
+    const shaped = (appointments ?? []).map((a: Record<string, unknown>) => ({
+      ...a,
+      lead: a.Lead ?? null,
+    }))
+
+    return NextResponse.json(shaped)
   } catch {
     return NextResponse.json({ error: 'Failed to fetch appointments' }, { status: 500 })
   }
@@ -17,11 +26,17 @@ export async function POST(req: NextRequest) {
   try {
     const body = await req.json()
     const { leadId, title, scheduledAt, duration, type, notes } = body
-    const appointment = await prisma.appointment.create({
-      data: { leadId, title, scheduledAt: new Date(scheduledAt), duration, type, notes },
-      include: { lead: { select: { name: true, email: true } } },
-    })
-    return NextResponse.json(appointment, { status: 201 })
+
+    const { data: appointment, error } = await supabase
+      .from('Appointment')
+      .insert({ leadId, title, scheduledAt, duration, type, notes })
+      .select('*, Lead(name, email)')
+      .single()
+
+    if (error) return NextResponse.json({ error: error.message }, { status: 500 })
+
+    const shaped = { ...appointment, lead: appointment.Lead ?? null }
+    return NextResponse.json(shaped, { status: 201 })
   } catch {
     return NextResponse.json({ error: 'Failed to create appointment' }, { status: 500 })
   }

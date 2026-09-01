@@ -1,5 +1,5 @@
 import { NextRequest, NextResponse } from 'next/server'
-import { prisma } from '@/lib/db'
+import { supabase } from '@/lib/supabase'
 import * as XLSX from 'xlsx'
 
 // ── Column header → internal field mapping (case-insensitive) ──────────────
@@ -89,13 +89,26 @@ export async function POST(req: NextRequest) {
       let duplicate = false
 
       if (row.email) {
-        const byEmail = await prisma.lead.findFirst({ where: { email: row.email } })
+        const { data: byEmail } = await supabase
+          .from('Lead')
+          .select('id')
+          .eq('email', row.email)
+          .maybeSingle()
         if (byEmail) duplicate = true
       } else if (row.phone) {
-        const byPhone = await prisma.lead.findFirst({ where: { phone: row.phone, name } })
+        const { data: byPhone } = await supabase
+          .from('Lead')
+          .select('id')
+          .eq('phone', row.phone)
+          .eq('name', name)
+          .maybeSingle()
         if (byPhone) duplicate = true
       } else {
-        const byName = await prisma.lead.findFirst({ where: { name } })
+        const { data: byName } = await supabase
+          .from('Lead')
+          .select('id')
+          .eq('name', name)
+          .maybeSingle()
         if (byName) duplicate = true
       }
 
@@ -109,18 +122,22 @@ export async function POST(req: NextRequest) {
       const status    = VALID_STATUSES.has(rawStatus) ? rawStatus : 'NEW'
 
       // ── Create lead ─────────────────────────────────────────────────────
-      await prisma.lead.create({
-        data: {
-          name,
-          email:   row.email   || '',
-          phone:   row.phone   || null,
-          service: row.service || null,
-          message: row.message || null,
-          notes:   row.notes   || null,
-          status,
-          source:  row.source  || 'excel_import',
-        },
+      const { error } = await supabase.from('Lead').insert({
+        name,
+        email:   row.email   || '',
+        phone:   row.phone   || null,
+        service: row.service || null,
+        message: row.message || null,
+        notes:   row.notes   || null,
+        status,
+        source:  row.source  || 'excel_import',
       })
+
+      if (error) {
+        errors.push(`Row ${i + 2}: ${error.message}`)
+        skipped++
+        continue
+      }
       imported++
     }
 
