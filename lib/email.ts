@@ -1,6 +1,9 @@
 import { Resend } from 'resend'
 
-const resend = new Resend(process.env.RESEND_API_KEY)
+// Lazy init — only create client when actually needed, not at module load time
+function getResend() {
+  return new Resend(process.env.RESEND_API_KEY || 'placeholder')
+}
 
 export async function sendLeadNotification(lead: {
   name: string
@@ -14,6 +17,7 @@ export async function sendLeadNotification(lead: {
     const toEmail = process.env.EMAIL_TO || ''
     if (!toEmail) return
 
+    const resend = getResend()
     await resend.emails.send({
       from: `Lead Dashboard <${fromEmail}>`,
       to: toEmail,

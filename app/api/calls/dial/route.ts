@@ -1,6 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { supabase } from '@/lib/supabase'
-import { twilioClient, TWILIO_FROM, ADMIN_PHONE } from '@/lib/twilio'
+import { getTwilioClient, TWILIO_FROM, ADMIN_PHONE } from '@/lib/twilio'
 
 export const runtime = 'nodejs'
 
@@ -29,6 +29,8 @@ export async function POST(req: NextRequest) {
       )
     }
 
+    const twilioClient = getTwilioClient()
+
     if (!twilioClient) {
       return NextResponse.json(
         { error: 'Twilio is not configured. Add TWILIO_* env vars.' },
@@ -47,14 +49,12 @@ export async function POST(req: NextRequest) {
     const encodedPhone = encodeURIComponent(lead.phone)
     const encodedName = encodeURIComponent(lead.name)
 
-    // Twilio calls admin phone first; when they pick up it bridges to the lead
     const call = await twilioClient.calls.create({
       to: ADMIN_PHONE,
       from: TWILIO_FROM,
       url: `${appUrl}/api/calls/twiml?to=${encodedPhone}&name=${encodedName}`,
     })
 
-    // Log the call in DB
     const { data: callLog, error: callError } = await supabase
       .from('CallLog')
       .insert({
@@ -70,7 +70,6 @@ export async function POST(req: NextRequest) {
       console.error('Failed to log call:', callError)
     }
 
-    // Auto-update lead status to CONTACTED if still NEW
     if (lead.status === 'NEW') {
       await supabase
         .from('Lead')
