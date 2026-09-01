@@ -1,4 +1,4 @@
-name: Deploy to VPS
+name: Deploy to Cloudflare Pages
 
 on:
   push:
@@ -14,39 +14,39 @@ jobs:
       - name: Checkout
         uses: actions/checkout@v4
 
-      - name: Deploy via SSH
-        uses: appleboy/ssh-action@v1.0.3
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
         with:
-          host: ${{ secrets.VPS_HOST }}
-          username: ${{ secrets.VPS_USER }}
-          key: ${{ secrets.VPS_SSH_KEY }}
-          port: ${{ secrets.VPS_PORT || 22 }}
-          script: |
-            set -e
-            cd /opt/ai-lead-dashboard
+          node-version: '22'
+          cache: 'npm'
 
-            echo "Pulling latest code..."
-            git pull origin main
+      - name: Install dependencies
+        run: npm ci --legacy-peer-deps
 
-            echo "Writing .env..."
-            cat > .env << 'ENVEOF'
-            DATABASE_URL=${{ secrets.DATABASE_URL }}
-            NEXT_PUBLIC_SUPABASE_URL=${{ secrets.NEXT_PUBLIC_SUPABASE_URL }}
-            SUPABASE_SERVICE_ROLE_KEY=${{ secrets.SUPABASE_SERVICE_ROLE_KEY }}
-            DASHBOARD_PASSWORD=${{ secrets.DASHBOARD_PASSWORD }}
-            DASHBOARD_SECRET=${{ secrets.DASHBOARD_SECRET }}
-            RESEND_API_KEY=${{ secrets.RESEND_API_KEY }}
-            EMAIL_FROM=${{ secrets.EMAIL_FROM }}
-            EMAIL_TO=${{ secrets.EMAIL_TO }}
-            NEXT_PUBLIC_BUSINESS_NAME=${{ secrets.NEXT_PUBLIC_BUSINESS_NAME }}
-            NEXT_PUBLIC_APP_URL=${{ secrets.NEXT_PUBLIC_APP_URL }}
-            ENVEOF
+      - name: Generate Prisma Client
+        run: npx prisma generate
+        env:
+          DATABASE_URL: ${{ secrets.DATABASE_URL }}
 
-            echo "Building and starting containers..."
-            docker compose down --remove-orphans
-            docker compose up -d --build
+      - name: Build for Cloudflare Pages
+        run: npx opennextjs-cloudflare build
+        env:
+          DATABASE_URL: ${{ secrets.DATABASE_URL }}
+          NEXT_PUBLIC_SUPABASE_URL: ${{ secrets.NEXT_PUBLIC_SUPABASE_URL }}
+          NEXT_PUBLIC_APP_URL: ${{ secrets.NEXT_PUBLIC_APP_URL }}
+          NEXT_PUBLIC_BUSINESS_NAME: ${{ secrets.NEXT_PUBLIC_BUSINESS_NAME }}
+          SUPABASE_SERVICE_ROLE_KEY: ${{ secrets.SUPABASE_SERVICE_ROLE_KEY }}
+          DASHBOARD_PASSWORD: ${{ secrets.DASHBOARD_PASSWORD }}
+          DASHBOARD_SECRET: ${{ secrets.DASHBOARD_SECRET }}
+          RESEND_API_KEY: ${{ secrets.RESEND_API_KEY }}
+          EMAIL_FROM: ${{ secrets.EMAIL_FROM }}
+          EMAIL_TO: ${{ secrets.EMAIL_TO }}
 
-            echo "Cleaning up old images..."
-            docker image prune -f
-
-            echo "✅ Deploy complete!"
+      - name: Deploy to Cloudflare Pages
+        uses: cloudflare/wrangler-action@v3
+        with:
+          apiToken: ${{ secrets.CF_API_TOKEN }}
+          accountId: ${{ secrets.CF_ACCOUNT_ID }}
+          command: pages deploy .open-next/assets --project-name=ai-lead-dashboard
+        env:
+          CLOUDFLARE_API_TOKEN: ${{ secrets.CF_API_TOKEN }}
