@@ -2,7 +2,7 @@ import { NextRequest, NextResponse } from 'next/server'
 import { supabase } from '@/lib/supabase'
 import { getResend } from '@/lib/mailer'
 
-export const runtime = 'edge'
+export const runtime = 'nodejs'
 
 export async function POST(req: NextRequest) {
   try {

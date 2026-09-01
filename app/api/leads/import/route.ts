@@ -2,7 +2,7 @@ import { NextRequest, NextResponse } from 'next/server'
 import { supabase } from '@/lib/supabase'
 import * as XLSX from 'xlsx'
 
-export const runtime = 'edge'
+export const runtime = 'nodejs'
 
 const FIELD_MAP: Record<string, string> = {
   name: 'name', fullname: 'name', 'full name': 'name', contact: 'name',

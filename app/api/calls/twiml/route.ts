@@ -1,6 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server'
 
-export const runtime = 'edge'
+export const runtime = 'nodejs'
 
 // Twilio hits this URL when the admin picks up — it bridges the call to the lead
 export async function POST(req: NextRequest) {

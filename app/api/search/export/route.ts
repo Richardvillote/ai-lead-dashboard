@@ -1,7 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server'
 import * as XLSX from 'xlsx'
 
-export const runtime = 'edge'
+export const runtime = 'nodejs'
 
 interface PlaceResult {
   placeId: string
