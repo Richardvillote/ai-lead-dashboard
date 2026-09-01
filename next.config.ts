@@ -1,9 +1,8 @@
 import type { NextConfig } from "next";
 
 const nextConfig: NextConfig = {
+  output: "standalone",
   typescript: {
-    // Next.js 16 generates internal validator types that conflict with
-    // properly-typed dynamic route handlers (known framework issue)
     ignoreBuildErrors: true,
   },
 };
